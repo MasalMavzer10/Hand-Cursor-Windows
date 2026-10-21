@@ -1,0 +1,3308 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hand + Head/Mouth Cursor Studio — Local Webcam &amp; macOS App</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- MediaPipe Hands & FaceMesh via jsDelivr for real local in-browser tracking -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.min.js" crossorigin="anonymous"></script>
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #0b0f17;
+      color: #e2e8f0;
+    }
+    .mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+    input[type="range"] {
+      accent-color: #38bdf8;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-sky-500/30 selection:text-sky-200">
+
+  <!-- Top Header & Global Mode Bar -->
+  <header class="border-b border-slate-800/80 bg-slate-900/90 backdrop-blur sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" />
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-bold text-sm sm:text-base tracking-tight text-white">Local Hand + Head/Mouth Cursor Studio</h1>
+            <span class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">Upgraded v2.0</span>
+          </div>
+          <p class="text-xs text-slate-400">Hand Move • Mouth-Open Click • Head-Tilt Scroll • Pinch-Hold Drag</p>
+        </div>
+      </div>
+
+      <!-- Live Status Pill & Primary Controls -->
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Mode Badge -->
+        <div id="modeBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-lg font-semibold text-xs tracking-wider uppercase bg-sky-500/20 text-sky-300 border border-sky-500/40">
+          <span id="modeDot" class="w-2 h-2 rounded-full bg-sky-400 animate-pulse"></span>
+          <span id="modeText">MOVE</span>
+        </div>
+
+        <!-- Input Source Toggle -->
+        <div class="inline-flex rounded-lg bg-slate-800 p-0.5 border border-slate-700/70">
+          <button id="btnSimSource" type="button" class="px-2.5 py-1 rounded-md text-xs font-medium bg-sky-600 text-white transition">
+            Interactive Simulator
+          </button>
+          <button id="btnCamSource" type="button" class="px-2.5 py-1 rounded-md text-xs font-medium text-slate-300 hover:text-white transition">
+            Live Webcam (Hand+Face)
+          </button>
+        </div>
+
+        <!-- Re-Center Head Neutral Button -->
+        <button id="btnRecenterHead" type="button" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-500/30 transition">
+          Center Head (N)
+        </button>
+
+        <!-- Pause Button (Stage C) -->
+        <button id="btnPause" type="button" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-1.5">
+          <span id="pauseBtnLabel">Pause (Space)</span>
+        </button>
+
+        <!-- Calibrate 4-Corner Button (Stage F) -->
+        <button id="btnCalibrate" type="button" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 transition">
+          4-Pt Calibrate (C)
+        </button>
+
+        <!-- Direct Download Python App Button -->
+        <button id="btnDownloadPyTop" type="button" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20 transition flex items-center gap-1.5">
+          <span>⬇ Download `hand_cursor_mac.py`</span>
+        </button>
+
+        <!-- View Switcher: Interactive Prototype vs Setup Guide -->
+        <div class="inline-flex rounded-lg bg-slate-800 p-0.5 border border-slate-700/70">
+          <button id="tabStudioBtn" type="button" class="px-2.5 py-1 rounded-md text-xs font-medium bg-slate-700 text-white transition">
+            Interactive Studio
+          </button>
+          <button id="tabGuideBtn" type="button" class="px-2.5 py-1 rounded-md text-xs font-medium text-slate-300 hover:text-white transition">
+            macOS Python Files &amp; Setup
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Toast Banner for notifications / camera fallback -->
+  <div id="toastBanner" class="hidden bg-indigo-950/90 border-b border-indigo-500/30 px-4 py-2 text-xs text-indigo-200">
+    <div class="max-w-7xl mx-auto flex items-center justify-between gap-2">
+      <span id="toastText">Ready.</span>
+      <button id="btnCloseToast" type="button" class="text-indigo-300 hover:text-white font-medium">Dismiss</button>
+    </div>
+  </div>
+
+  <!-- MAIN VIEW 1: Interactive Studio (Camera + Virtual Desktop + Settings) -->
+  <main id="studioView" class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
+
+    <!-- LEFT COLUMN (5 cols): Camera Feed, Hand+Head Landmarks & Simulator Controls -->
+    <section class="lg:col-span-5 flex flex-col gap-3">
+
+      <!-- Camera & Hand/Face Landmarks Card -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden shadow-xl flex flex-col">
+        <div class="px-3.5 py-2.5 border-b border-slate-800 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-300">Hand Move + Head Scroll + Mouth Click</span>
+          </div>
+          <div class="flex items-center gap-2 text-xs mono text-slate-400">
+            <span id="fpsCounter">60 FPS</span>
+            <span>•</span>
+            <span id="handDetectedBadge" class="text-emerald-400 font-medium">Hand + Face Active</span>
+          </div>
+        </div>
+
+        <!-- Hidden video element for webcam stream -->
+        <video id="webcamVideo" class="hidden" playsinline muted></video>
+
+        <!-- Interactive Canvas for Camera Preview + Hand + Head/Mouth Overlay -->
+        <div class="relative bg-slate-950 aspect-video w-full select-none overflow-hidden">
+          <canvas id="cameraCanvas" width="640" height="360" class="w-full h-full block cursor-crosshair"></canvas>
+
+          <!-- Calibration Overlay Prompt -->
+          <div id="calibBanner" class="hidden absolute inset-x-3 top-3 bg-amber-950/90 border border-amber-500/50 rounded-xl px-3 py-2 text-xs text-amber-200 flex items-center justify-between shadow-lg">
+            <div>
+              <span class="font-bold text-amber-300">4-Point Calibration:</span>
+              <span id="calibStepText">Point at TOP-LEFT comfortable corner &amp; open mouth / click (1/4)</span>
+            </div>
+            <button id="btnCancelCalib" type="button" class="px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 font-medium">Cancel</button>
+          </div>
+
+          <!-- Startup Countdown Overlay -->
+          <div id="countdownOverlay" class="hidden absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center text-center p-4">
+            <div class="text-xs uppercase tracking-widest text-amber-400 font-semibold mb-1">Stage F Safety Countdown</div>
+            <div id="countdownNumber" class="text-4xl font-bold text-white mono mb-1">3.0s</div>
+            <p class="text-xs text-slate-300 max-w-xs">Position your hand comfortably inside the active rectangle and look at the center of the screen.</p>
+          </div>
+        </div>
+
+        <!-- Simulator Gesture Quick-Bar -->
+        <div class="p-3 bg-slate-900 border-t border-slate-800 flex flex-col gap-2.5">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              Test Gestures (Simulator &amp; Live Override)
+            </span>
+            <span class="text-[11px] text-sky-300">Move mouse over either panel to steer hand</span>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+            <button id="poseMoveBtn" type="button" class="pose-btn px-2 py-1.5 rounded-lg text-xs font-medium bg-sky-500/20 text-sky-300 border border-sky-500/40 transition">
+              1. Hand Move
+            </button>
+            <button id="poseClickBtn" type="button" class="pose-btn px-2 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 transition">
+              2. Mouth Click
+            </button>
+            <button id="poseDragBtn" type="button" class="pose-btn px-2 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition">
+              3. Pinch Drag
+            </button>
+            <button id="poseScrollBtn" type="button" class="pose-btn px-2 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-purple-300 border border-slate-700 transition">
+              4. Head Scroll
+            </button>
+            <button id="poseLostBtn" type="button" class="pose-btn px-2 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 transition">
+              5. Hand Lost
+            </button>
+          </div>
+
+          <!-- Sliders to test Head Pitch (Up/Down Scroll), Mouth Open (Click), and Pinch (Drag) -->
+          <div class="space-y-1.5 pt-1">
+            <div class="flex items-center gap-2">
+              <label for="simHeadSlider" class="text-[11px] text-purple-300 w-36 font-medium">Head Tilt (Scroll ↑/↓):</label>
+              <input id="simHeadSlider" type="range" min="-0.14" max="0.14" step="0.005" value="0.00" class="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer" />
+              <span id="simHeadVal" class="text-xs mono text-purple-300 w-14 text-right">0.000</span>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <label for="simMouthSlider" class="text-[11px] text-emerald-300 w-36 font-medium">Mouth Open (Click):</label>
+              <input id="simMouthSlider" type="range" min="0.05" max="0.55" step="0.01" value="0.08" class="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer" />
+              <span id="simMouthVal" class="text-xs mono text-emerald-300 w-14 text-right">0.08</span>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <label for="simPinchSlider" class="text-[11px] text-amber-300 w-36 font-medium">Thumb–Index (Drag):</label>
+              <input id="simPinchSlider" type="range" min="0.08" max="0.65" step="0.01" value="0.48" class="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer" />
+              <span id="simPinchVal" class="text-xs mono text-amber-300 w-14 text-right">0.48</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Telemetry & Hysteresis Meters -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 shadow-xl flex flex-col gap-2.5">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-300">Decoupled Gesture Telemetry</h2>
+          <span id="statusDetailText" class="text-xs text-sky-300 font-medium truncate max-w-[260px]">Stabilized hand moving cursor</span>
+        </div>
+
+        <!-- Mouth Open (MAR) Click Bar -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-[11px] mono text-slate-400">
+            <span>Mouth Open (MAR): <strong id="telMouthRatio" class="text-white">0.08</strong></span>
+            <span>Click &gt; <strong id="telMouthEnter" class="text-emerald-400">0.26</strong> | Reset &lt; <strong id="telMouthExit" class="text-slate-400">0.16</strong></span>
+          </div>
+          <div class="relative h-2.5 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+            <div id="barMouthEnterMarker" class="absolute top-0 bottom-0 w-0.5 bg-emerald-400 z-10" style="left: 47%;"></div>
+            <div id="barMouthFill" class="h-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-75" style="width: 15%;"></div>
+          </div>
+        </div>
+
+        <!-- Pinch-to-Drag Bar -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-[11px] mono text-slate-400">
+            <span>Pinch Ratio (Drag Only): <strong id="telPinchRatio" class="text-white">0.48</strong></span>
+            <span>Drag &lt; <strong id="telEnterThresh" class="text-amber-400">0.26</strong> | Drop &gt; <strong id="telExitThresh" class="text-slate-400">0.38</strong></span>
+          </div>
+          <div class="relative h-2.5 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+            <div id="barEnterMarker" class="absolute top-0 bottom-0 w-0.5 bg-amber-400 z-10" style="left: 40%;"></div>
+            <div id="barExitMarker" class="absolute top-0 bottom-0 w-0.5 bg-slate-400 z-10" style="left: 58%;"></div>
+            <div id="barPinchFill" class="h-full bg-gradient-to-r from-amber-500 to-sky-500 transition-all duration-75" style="width: 74%;"></div>
+          </div>
+        </div>
+
+        <!-- 4 Telemetry Readouts -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+          <div class="bg-slate-950/80 border border-slate-800/80 rounded-xl p-2">
+            <div class="text-[10px] uppercase text-slate-400">Mapped Cursor</div>
+            <div id="telCursorPos" class="text-xs font-semibold mono text-white mt-0.5">(720, 450)</div>
+          </div>
+          <div class="bg-slate-950/80 border border-slate-800/80 rounded-xl p-2">
+            <div class="text-[10px] uppercase text-slate-400">Head Pitch Δ</div>
+            <div id="telDragTimer" class="text-xs font-semibold mono text-purple-300 mt-0.5">+0.000</div>
+          </div>
+          <div class="bg-slate-950/80 border border-slate-800/80 rounded-xl p-2">
+            <div class="text-[10px] uppercase text-slate-400">Scroll Speed</div>
+            <div id="telScrollDelta" class="text-xs font-semibold mono text-white mt-0.5">0.0 px/f</div>
+          </div>
+          <div class="bg-slate-950/80 border border-slate-800/80 rounded-xl p-2">
+            <div class="text-[10px] uppercase text-slate-400">Mouth Click</div>
+            <div id="telCooldown" class="text-xs font-semibold mono text-emerald-400 mt-0.5">Ready</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stage F: Comfort & Sensitivity Tuning -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 shadow-xl flex flex-col gap-3">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-300">Stage F: Cursor Stability &amp; Gesture Sensitivity</h2>
+          <div class="flex items-center gap-2">
+            <button id="btnCountdownTest" type="button" class="px-2 py-1 rounded text-[11px] font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700">
+              3s Countdown
+            </button>
+            <button id="btnResetSettings" type="button" class="px-2 py-1 rounded text-[11px] font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700">
+              Reset Defaults
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5 text-xs">
+          <!-- Base Smoothing -->
+          <div>
+            <div class="flex justify-between mb-1">
+              <label for="cfgSmoothing" class="text-slate-300">Precision Smoothing</label>
+              <span id="valSmoothing" class="mono text-sky-300">0.18</span>
+            </div>
+            <input id="cfgSmoothing" type="range" min="0.06" max="0.65" step="0.02" value="0.18" class="w-full h-1.5 bg-slate-800 rounded-lg" />
+          </div>
+
+          <!-- Cursor Speed -->
+          <div>
+            <div class="flex justify-between mb-1">
+              <label for="cfgSpeed" class="text-slate-300">Cursor Range Gain</label>
+              <span id="valSpeed" class="mono text-sky-300">1.15x</span>
+            </div>
+            <input id="cfgSpeed" type="range" min="0.75" max="2.00" step="0.05" value="1.15" class="w-full h-1.5 bg-slate-800 rounded-lg" />
+          </div>
+
+          <!-- Precision Acceleration Curve -->
+          <div>
+            <div class="flex justify-between mb-1">
+              <label for="cfgCurve" class="text-slate-300">Fine-Aim Curve (&gt;1 = steadier)</label>
+              <span id="valCurve" class="mono text-sky-300">1.35</span>
+            </div>
+            <input id="cfgCurve" type="range" min="1.00" max="2.00" step="0.05" value="1.35" class="w-full h-1.5 bg-slate-800 rounded-lg" />
+          </div>
+
+          <!-- Mouth Click Threshold -->
+          <div>
+            <div class="flex justify-between mb-1">
+              <label for="cfgMouthEnter" class="text-slate-300">Mouth Open Click Thresh</label>
+              <span id="valMouthEnter" class="mono text-emerald-300">0.26</span>
+            </div>
+            <input id="cfgMouthEnter" type="range" min="0.16" max="0.45" step="0.01" value="0.26" class="w-full h-1.5 bg-slate-800 rounded-lg" />
+          </div>
+
+          <!-- Pinch Drag Sensitivity -->
+          <div>
+            <div class="flex justify-between mb-1">
+              <label for="cfgPinchEnter" class="text-slate-300">Pinch Drag Threshold</label>
+              <span id="valPinchEnter" class="mono text-amber-300">0.26</span>
+            </div>
+            <input id="cfgPinchEnter" type="range" min="0.15" max="0.38" step="0.01" value="0.26" class="w-full h-1.5 bg-slate-800 rounded-lg" />
+          </div>
+
+          <!-- Head Scroll Speed -->
+          <div>
+            <div class="flex justify-between mb-1">
+              <label for="cfgScrollSpeed" class="text-slate-300">Head Tilt Scroll Speed</label>
+              <span id="valScrollSpeed" class="mono text-purple-300">32</span>
+            </div>
+            <input id="cfgScrollSpeed" type="range" min="10" max="70" step="2" value="32" class="w-full h-1.5 bg-slate-800 rounded-lg" />
+          </div>
+        </div>
+
+        <!-- Anchor Point, Mirror & Handedness Toggles -->
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/80 text-xs">
+          <div class="flex items-center gap-1.5">
+            <span class="text-slate-400">Hand Anchor:</span>
+            <select id="cfgAnchorMode" class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-sky-300 font-medium">
+              <option value="blend">Stabilized (70% Knuckle + 30% Tip)</option>
+              <option value="knuckle">Palm Knuckle Only (Ultra-Steady)</option>
+              <option value="tip">Index Fingertip Only</option>
+            </select>
+          </div>
+
+          <div class="flex items-center gap-1.5">
+            <span class="text-slate-400">Margin:</span>
+            <input id="cfgMargin" type="range" min="0.06" max="0.32" step="0.01" value="0.18" class="w-16 h-1.5 bg-slate-800 rounded-lg" />
+            <span id="valMargin" class="mono text-sky-300">18%</span>
+          </div>
+
+          <div class="flex items-center gap-1.5">
+            <select id="cfgHandedness" class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white">
+              <option value="Any">Any Hand</option>
+              <option value="Right">Right</option>
+              <option value="Left">Left</option>
+            </select>
+            <label class="inline-flex items-center gap-1 cursor-pointer ml-1">
+              <input id="cfgMirror" type="checkbox" checked class="rounded bg-slate-800 border-slate-700 text-sky-500 focus:ring-0" />
+              <span class="text-slate-300">Mirror</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT COLUMN (7 cols): Virtual macOS Desktop Playground -->
+    <section class="lg:col-span-7 flex flex-col gap-3">
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden shadow-xl flex-1 flex flex-col min-h-[560px]">
+
+        <!-- Virtual Desktop Top Menu Bar -->
+        <div class="px-4 py-2 bg-slate-950 border-b border-slate-800 flex items-center justify-between text-xs">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-rose-500/80"></span>
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-500/80"></span>
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500/80"></span>
+            <span class="ml-2 font-semibold text-slate-200">Virtual macOS Test Desktop (Move mouse here or use Webcam)</span>
+          </div>
+          <div class="flex items-center gap-3 mono text-[11px] text-slate-400">
+            <span>Mouth Clicks: <strong id="statClicks" class="text-emerald-400">0</strong></span>
+            <span>Pinch Drops: <strong id="statDrops" class="text-amber-400">0</strong></span>
+            <span>Corners: <strong id="statCorners" class="text-sky-400">0/4</strong></span>
+          </div>
+        </div>
+
+        <!-- Interactive Desktop Surface -->
+        <div id="desktopSurface" class="relative flex-1 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950/40 p-5 overflow-hidden select-none">
+
+          <!-- 4 Corner Precision Targets -->
+          <div data-corner="TL" class="corner-target absolute top-2.5 left-2.5 w-11 h-11 rounded-xl border border-dashed border-sky-500/50 bg-sky-500/10 flex flex-col items-center justify-center text-[10px] font-mono text-sky-300 transition">
+            <span>TL</span>
+          </div>
+          <div data-corner="TR" class="corner-target absolute top-2.5 right-2.5 w-11 h-11 rounded-xl border border-dashed border-sky-500/50 bg-sky-500/10 flex flex-col items-center justify-center text-[10px] font-mono text-sky-300 transition">
+            <span>TR</span>
+          </div>
+          <div data-corner="BL" class="corner-target absolute bottom-2.5 left-2.5 w-11 h-11 rounded-xl border border-dashed border-sky-500/50 bg-sky-500/10 flex flex-col items-center justify-center text-[10px] font-mono text-sky-300 transition">
+            <span>BL</span>
+          </div>
+          <div data-corner="BR" class="corner-target absolute bottom-2.5 right-2.5 w-11 h-11 rounded-xl border border-dashed border-sky-500/50 bg-sky-500/10 flex flex-col items-center justify-center text-[10px] font-mono text-sky-300 transition">
+            <span>BR</span>
+          </div>
+
+          <!-- Desktop Content Grid inside safe margin -->
+          <div class="h-full grid grid-cols-1 md:grid-cols-12 gap-4 px-8 py-6">
+
+            <!-- Left Zone (7 cols): Mouth-Click Targets & Pinch-Drag Workspace Items -->
+            <div class="md:col-span-7 flex flex-col gap-3">
+              <!-- Mouth-Click Target Test Panel -->
+              <div class="bg-slate-900/85 border border-slate-800 rounded-xl p-3.5">
+                <div class="flex items-center justify-between mb-1.5">
+                  <span class="text-xs font-semibold text-emerald-300">Mouth-Open Click Targets</span>
+                  <button id="btnResetPlayground" type="button" class="text-[11px] text-sky-400 hover:text-sky-300">Reset Sandbox</button>
+                </div>
+                <p class="text-[11px] text-slate-400 mb-3">Hover the cursor over a button and <strong>open your mouth</strong> (or press <span class="mono text-emerald-300">2</span> / click) — your hand stays completely still!</p>
+                <div class="grid grid-cols-3 gap-2">
+                  <button data-virtual-click="btn1" type="button" class="v-click-target px-3 py-2.5 rounded-lg bg-slate-800/90 border border-slate-700 text-xs font-medium text-slate-200 flex flex-col items-center gap-1 transition">
+                    <span>Launch App</span>
+                    <span class="v-count text-[10px] mono text-emerald-400">0 hits</span>
+                  </button>
+                  <button data-virtual-click="btn2" type="button" class="v-click-target px-3 py-2.5 rounded-lg bg-slate-800/90 border border-slate-700 text-xs font-medium text-slate-200 flex flex-col items-center gap-1 transition">
+                    <span>Toggle Wi-Fi</span>
+                    <span class="v-count text-[10px] mono text-emerald-400">0 hits</span>
+                  </button>
+                  <button data-virtual-click="btn3" type="button" class="v-click-target px-3 py-2.5 rounded-lg bg-slate-800/90 border border-slate-700 text-xs font-medium text-slate-200 flex flex-col items-center gap-1 transition">
+                    <span>Fine Target</span>
+                    <span class="v-count text-[10px] mono text-emerald-400">0 hits</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Dedicated Pinch & Hold Drag-and-Drop Playground -->
+              <div class="bg-slate-900/85 border border-slate-800 rounded-xl p-3.5 flex-1 flex flex-col justify-between relative min-h-[215px]">
+                <div>
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-semibold text-amber-300">Dedicated Pinch-and-Hold Drag</span>
+                    <span id="dragStatusLabel" class="text-[11px] mono text-slate-400">Idle</span>
+                  </div>
+                  <p class="text-[11px] text-slate-400">Hover over a file card below, <strong>pinch thumb + index</strong> (or hold right-click / press <span class="mono text-amber-300">3</span>) to drag into the Drop Folder.</p>
+                </div>
+
+                <!-- Drop Zone Target -->
+                <div id="dropZoneBox" class="mt-auto h-20 rounded-xl border-2 border-dashed border-indigo-500/40 bg-indigo-950/20 flex items-center justify-center text-xs text-indigo-300 font-medium">
+                  Drop Folder — Pinch &amp; Drag items here
+                </div>
+
+                <!-- Draggable Floating Chips -->
+                <div id="dragItem1" data-draggable="true" class="draggable-card absolute left-4 top-20 px-3 py-2 rounded-lg bg-amber-500/20 border border-amber-400/50 text-amber-200 text-xs font-semibold shadow-lg flex items-center gap-1.5">
+                  <span>📄</span>
+                  <span>Notes.txt</span>
+                </div>
+                <div id="dragItem2" data-draggable="true" class="draggable-card absolute left-36 top-20 px-3 py-2 rounded-lg bg-sky-500/20 border border-sky-400/50 text-sky-200 text-xs font-semibold shadow-lg flex items-center gap-1.5">
+                  <span>🖼️</span>
+                  <span>Photo.png</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Zone (5 cols): Head-Movement (Pitch Up/Down) Scrollable Reader -->
+            <div class="md:col-span-5 flex flex-col">
+              <div class="bg-slate-900/85 border border-slate-800 rounded-xl p-3.5 flex-1 flex flex-col max-h-[395px]">
+                <div class="flex items-center justify-between mb-1.5">
+                  <span class="text-xs font-semibold text-purple-300">Head-Tilt Scroll Reader (↑/↓)</span>
+                  <span id="scrollOffsetLabel" class="text-[11px] mono text-purple-300">top: 0px</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mb-2">Move/tilt your <strong>head UP</strong> to scroll up or <strong>DOWN</strong> to scroll down (in Simulator, use <span class="mono text-purple-300">↑/↓ arrows</span> or the Head Tilt slider):</p>
+
+                <!-- Quick Simulator Scroll Buttons -->
+                <div class="grid grid-cols-3 gap-1.5 mb-2">
+                  <button id="btnSimTiltUp" type="button" class="px-2 py-1 rounded bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-[11px] text-purple-200 font-medium">
+                    ↑ Tilt Head Up
+                  </button>
+                  <button id="btnSimTiltNeutral" type="button" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-300 font-medium">
+                    • Neutral Head
+                  </button>
+                  <button id="btnSimTiltDown" type="button" class="px-2 py-1 rounded bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-[11px] text-purple-200 font-medium">
+                    ↓ Tilt Head Down
+                  </button>
+                </div>
+
+                <div id="scrollablePane" class="flex-1 overflow-y-auto pr-1.5 space-y-2 rounded-lg bg-slate-950/80 p-2.5 border border-slate-800/90 text-xs">
+                  <div class="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                    <div class="font-semibold text-emerald-300">1. Why Mouth-Click + Pinch-Drag Works Better</div>
+                    <p class="text-slate-400 mt-0.5">Opening your mouth to click means your fingers never twitch while aiming at small buttons, and pinching is 100% dedicated to dragging.</p>
+                  </div>
+                  <div class="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                    <div class="font-semibold text-purple-300">2. Effortless Head-Tilt Scrolling</div>
+                    <p class="text-slate-400 mt-0.5">Tilting your head slightly up or down scrolls smoothly without needing awkward two-finger hand poses. Press N anytime to re-center your neutral head angle.</p>
+                  </div>
+                  <div class="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                    <div class="font-semibold text-sky-300">3. Stabilized Hand Knuckle Anchor</div>
+                    <p class="text-slate-400 mt-0.5">By blending 70% Index Knuckle (MCP) + 30% Index Tip with a fine-aim power curve (1.35), micro-tremors disappear while full-screen reach stays effortless.</p>
+                  </div>
+                  <div class="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                    <div class="font-semibold text-amber-300">4. Running on macOS Locally</div>
+                    <p class="text-slate-400 mt-0.5">Click the green "Download hand_cursor_mac.py" button at the top right to save the Python file directly to your Mac Downloads folder.</p>
+                  </div>
+                  <div class="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                    <div class="font-semibold text-sky-300">5. Instant Pause Safety</div>
+                    <p class="text-slate-400 mt-0.5">Press Spacebar or P (or Cmd+Shift+P globally on macOS) anytime to pause tracking when typing or using your physical mouse.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Live Event Log Strip at Bottom of Virtual Desktop -->
+          <div class="absolute bottom-2.5 inset-x-16 bg-slate-950/90 border border-slate-800/90 rounded-lg px-3 py-1.5 flex items-center justify-between text-[11px] mono">
+            <span id="eventLogText" class="text-slate-300 truncate">Move your mouse over either panel (or enable Live Webcam) to steer the cursor.</span>
+            <span class="text-slate-500 ml-2 whitespace-nowrap">Keys: [Space] Pause • [N] Center Head • [↑/↓] Scroll</span>
+          </div>
+
+          <!-- VIRTUAL CURSOR OVERLAY -->
+          <div id="virtualCursor" class="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
+            <div id="cursorRing" class="w-9 h-9 rounded-full border-2 border-sky-400 bg-sky-400/15 flex items-center justify-center shadow-lg shadow-sky-500/30">
+              <div id="cursorDot" class="w-2 h-2 rounded-full bg-white"></div>
+            </div>
+            <div id="cursorFloatingTag" class="mt-1 px-1.5 py-0.5 rounded bg-slate-950/90 border border-slate-700 text-[10px] mono text-sky-300 whitespace-nowrap text-center">
+              MOVE
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- MAIN VIEW 2: macOS Python App Download, Code & Step-by-Step Guide -->
+  <section id="guideView" class="hidden flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 space-y-5">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-lg font-bold text-white">Download &amp; Run `hand_cursor_mac.py` on Your Mac</h2>
+          <p class="text-xs text-slate-400">Includes Hand Move (Stabilized), Mouth-Open Click, Head-Pitch Up/Down Scroll, and Pinch-Hold Drag.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button id="btnDownloadPyGuide" type="button" class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20 transition">
+            ⬇ Download `hand_cursor_mac.py`
+          </button>
+          <button id="btnDownloadLauncher" type="button" class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20 transition">
+            ⬇ Download `run_mac.command` (1-Click Runner)
+          </button>
+          <button id="btnBackToStudio" type="button" class="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700">
+            Back to Studio
+          </button>
+        </div>
+      </div>
+
+      <!-- 3-Step macOS Instructions -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+        <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
+          <div class="font-semibold text-emerald-400">Step 1: Save `hand_cursor_mac.py`</div>
+          <p class="text-slate-400">Click the green <strong>Download `hand_cursor_mac.py`</strong> button above (it saves to your Mac's <span class="mono text-slate-200">~/Downloads</span> folder).</p>
+        </div>
+        <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
+          <div class="font-semibold text-sky-400">Step 2: Install Dependencies</div>
+          <p class="text-slate-400">Open the macOS <strong>Terminal</strong> app and paste:</p>
+          <pre class="mono text-[11px] bg-slate-900 p-2 rounded border border-slate-800 text-slate-200 overflow-x-auto">cd ~/Downloads
+pip3 install opencv-python mediapipe numpy pyobjc-framework-Quartz pynput</pre>
+        </div>
+        <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
+          <div class="font-semibold text-amber-400">Step 3: Run the App</div>
+          <p class="text-slate-400">Test in preview mode first, or run full desktop control:</p>
+          <pre class="mono text-[11px] bg-slate-900 p-2 rounded border border-slate-800 text-slate-200 overflow-x-auto">python3 hand_cursor_mac.py --preview-only
+# Or full macOS control:
+python3 hand_cursor_mac.py</pre>
+        </div>
+      </div>
+
+      <!-- Full Copyable Source Code Box -->
+      <div class="space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-semibold text-slate-300">Complete `hand_cursor_mac.py` Source Code</span>
+          <button id="btnCopyPythonCode" type="button" class="px-3 py-1 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700">
+            Copy Full Python Code
+          </button>
+        </div>
+        <textarea id="pythonCodeTextarea" readonly class="w-full h-80 p-3 rounded-xl bg-slate-950 border border-slate-800 mono text-[11px] text-slate-300 focus:outline-none">#!/usr/bin/env python3
+&quot;&quot;&quot;
+Local Hand + Head/Mouth Controlled Cursor for macOS (Stages A - F Upgraded)
+===========================================================================
+Controls (Decoupled for Zero Gesture Confusion):
+------------------------------------------------
+1. CURSOR MOVE : Move your hand inside the active box (uses a stabilized
+                 knuckle+fingertip anchor and 1-Euro velocity filter so your
+                 cursor stays steady over small targets).
+2. CLICK       : Open your mouth briefly (tracked via MediaPipe FaceMesh inner
+                 lip aspect ratio with hysteresis &amp; cooldown — your hand stays
+                 completely still while clicking!).
+3. DRAG &amp; DROP : Pinch thumb + index finger and hold to drag; release to drop
+                 (100% dedicated to dragging so click and drag never conflict).
+4. SCROLL UP/DN: Tilt/move your head UP to scroll up, or DOWN to scroll down
+                 (tracked via FaceMesh nose pitch relative to your neutral head
+                 position, with a comfort deadzone).
+5. PAUSE       : Press SPACE / P (or global Cmd+Shift+P) to pause immediately.
+
+Quick Start on macOS:
+---------------------
+1. Open Terminal in the folder containing this file and install dependencies:
+   pip install opencv-python mediapipe numpy pyobjc-framework-Quartz pynput
+
+2. Test safely in Preview-Only mode first (no system mouse movement):
+   python3 hand_cursor_mac.py --preview-only
+
+3. Run with full macOS Desktop Control:
+   python3 hand_cursor_mac.py
+
+Keyboard Shortcuts (inside preview window):
+-------------------------------------------
+- SPACE or P : Pause / Resume tracking immediately
+- N          : Re-center neutral head position for scrolling
+- D          : Toggle live macOS Desktop Control vs. Preview-Only mode (3s countdown)
+- C          : Start 4-point comfortable hand workspace Calibration wizard
+- A          : Cycle cursor anchor point (Stabilized Blend -&gt; Knuckle -&gt; Index Tip)
+- M          : Toggle horizontal camera mirroring
+- H          : Cycle preferred handedness (Any -&gt; Right -&gt; Left)
+- S          : Toggle live settings trackbars window
+- R          : Reset settings and calibration to defaults
+- Q or ESC   : Safely release any active drag and quit
+&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import argparse
+import atexit
+from dataclasses import asdict, dataclass
+import json
+import math
+from pathlib import Path
+import signal
+import sys
+import time
+from typing import Dict, List, Optional, Tuple
+
+import cv2
+import numpy as np
+
+# ---------------------------------------------------------------------------
+# Optional macOS Pointer Control Backends (Quartz CGEvent -&gt; pynput -&gt; Mock)
+# ---------------------------------------------------------------------------
+QUARTZ_AVAILABLE = False
+PYNPUT_AVAILABLE = False
+
+try:
+    import Quartz  # type: ignore
+
+    QUARTZ_AVAILABLE = True
+except ImportError:
+    Quartz = None  # type: ignore
+
+try:
+    from pynput import keyboard as pynput_keyboard  # type: ignore
+    from pynput import mouse as pynput_mouse  # type: ignore
+
+    PYNPUT_AVAILABLE = True
+except ImportError:
+    pynput_keyboard = None  # type: ignore
+    pynput_mouse = None  # type: ignore
+
+# ---------------------------------------------------------------------------
+# MediaPipe Hands &amp; FaceMesh Import
+# ---------------------------------------------------------------------------
+MP_AVAILABLE = False
+try:
+    import mediapipe as mp  # type: ignore
+
+    if hasattr(mp, &quot;solutions&quot;) and hasattr(mp.solutions, &quot;hands&quot;):
+        MP_AVAILABLE = True
+except ImportError:
+    mp = None  # type: ignore
+
+
+CONFIG_PATH = Path.home() / &quot;.hand_cursor_mac_config.json&quot;
+
+
+# ===========================================================================
+# Stage F: Configuration &amp; Persistent Settings
+# ===========================================================================
+@dataclass
+class CursorConfig:
+    camera_index: int = 0
+    frame_width: int = 960
+    frame_height: int = 540
+    mirror: bool = True
+    handedness: str = &quot;Any&quot;  # &quot;Any&quot;, &quot;Right&quot;, &quot;Left&quot;
+
+    # Cursor anchor mode: &quot;blend&quot; (70% knuckle + 30% tip), &quot;knuckle&quot; (lm 5), &quot;tip&quot; (lm 8)
+    anchor_mode: str = &quot;blend&quot;
+
+    # Stage B: Active hand region margins (normalized)
+    roi_left: float = 0.18
+    roi_right: float = 0.82
+    roi_top: float = 0.18
+    roi_bottom: float = 0.82
+
+    # Stage B: Stabilized 1-Euro / Velocity-Adaptive Smoothing &amp; Precision Curve
+    base_smoothing: float = 0.16     # Heavy smoothing at low speed for rock-solid aim
+    max_smoothing: float = 0.78      # Fast response at high hand speed
+    cursor_speed: float = 1.15       # Overall range multiplier
+    precision_exponent: float = 1.35 # &gt; 1.0 dampens micro-tremors &amp; accelerates larger moves
+    jitter_deadzone_px: float = 2.5  # Ignore sub-pixel tremors
+
+    # Mouth-Open Click Settings (MediaPipe FaceMesh MAR)
+    mouth_click_enabled: bool = True
+    mouth_enter_thresh: float = 0.26  # Lip opening / mouth width ratio to trigger click
+    mouth_exit_thresh: float = 0.16   # Lip ratio below which mouth is considered closed
+    mouth_debounce_s: float = 0.045   # Brief 45ms stability check before firing click
+    click_cooldown_s: float = 0.32    # Cooldown between consecutive mouth clicks
+
+    # Stage D: Thumb-Index Pinch &amp; Hold (Dedicated 100% to Drag &amp; Drop)
+    pinch_enter_thresh: float = 0.26  # Palm-normalized thumb-index distance to start pinch
+    pinch_exit_thresh: float = 0.38   # Distance ratio above which drag releases
+    drag_hold_delay_s: float = 0.18   # Hold pinch briefly to engage drag
+    lost_hand_drag_grace_s: float = 0.18
+
+    # Stage E: Head Movement (Pitch Up/Down) Scroll Settings
+    head_scroll_enabled: bool = True
+    head_deadzone_norm: float = 0.035  # Comfort neutral zone around neutral head pitch
+    head_scroll_speed: float = 32.0    # Scroll speed multiplier when head tilts up/down
+
+    # Stage C &amp; F: Safety &amp; startup
+    startup_countdown_s: float = 3.0
+    min_detection_confidence: float = 0.65
+    min_tracking_confidence: float = 0.65
+
+    def save(self, path: Path = CONFIG_PATH) -&gt; None:
+        try:
+            path.write_text(json.dumps(asdict(self), indent=2))
+        except OSError as exc:
+            print(f&quot;[warn] Could not save config to {path}: {exc}&quot;)
+
+    @classmethod
+    def load(cls, path: Path = CONFIG_PATH) -&gt; &quot;CursorConfig&quot;:
+        cfg = cls()
+        if path.exists():
+            try:
+                data = json.loads(path.read_text())
+                for key, val in data.items():
+                    if hasattr(cfg, key):
+                        setattr(cfg, key, val)
+            except Exception as exc:
+                print(f&quot;[warn] Could not load config from {path}, using defaults: {exc}&quot;)
+        return cfg
+
+
+# ===========================================================================
+# Stage C: macOS Pointer &amp; Event Controller
+# ===========================================================================
+class MacPointerController:
+    &quot;&quot;&quot;
+    Wraps macOS Quartz CGEvent (preferred) or pynput (fallback) to move the
+    system pointer, click, drag, and scroll with fail-safe state cleanup.
+    &quot;&quot;&quot;
+
+    def __init__(self, preview_only: bool = False) -&gt; None:
+        self.preview_only = preview_only
+        self.backend_name = &quot;Preview-Only&quot;
+        self._mouse_ctrl = None
+        self.is_dragging = False
+        self.last_pos: Tuple[float, float] = (0.0, 0.0)
+        self.screen_w, self.screen_h = self._detect_screen_size()
+
+        if not preview_only:
+            if QUARTZ_AVAILABLE:
+                self.backend_name = &quot;macOS Quartz CGEvent&quot;
+            elif PYNPUT_AVAILABLE:
+                self.backend_name = &quot;pynput MouseController&quot;
+                self._mouse_ctrl = pynput_mouse.Controller()
+            else:
+                self.backend_name = &quot;Preview-Only (install pyobjc-framework-Quartz)&quot;
+                self.preview_only = True
+
+    def _detect_screen_size(self) -&gt; Tuple[int, int]:
+        if QUARTZ_AVAILABLE:
+            main_id = Quartz.CGMainDisplayID()
+            w = int(Quartz.CGDisplayPixelsWide(main_id))
+            h = int(Quartz.CGDisplayPixelsHigh(main_id))
+            if w &gt; 0 and h &gt; 0:
+                return w, h
+        return 1440, 900
+
+    def move(self, x: float, y: float) -&gt; None:
+        x = float(max(0, min(self.screen_w - 1, x)))
+        y = float(max(0, min(self.screen_h - 1, y)))
+        self.last_pos = (x, y)
+
+        if self.preview_only:
+            return
+
+        if QUARTZ_AVAILABLE:
+            evt_type = (
+                Quartz.kCGEventLeftMouseDragged
+                if self.is_dragging
+                else Quartz.kCGEventMouseMoved
+            )
+            evt = Quartz.CGEventCreateMouseEvent(
+                None, evt_type, (x, y), Quartz.kCGMouseButtonLeft
+            )
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, evt)
+        elif self._mouse_ctrl is not None:
+            self._mouse_ctrl.position = (int(x), int(y))
+
+    def click(self, x: Optional[float] = None, y: Optional[float] = None) -&gt; None:
+        if x is None or y is None:
+            x, y = self.last_pos
+        x = float(max(0, min(self.screen_w - 1, x)))
+        y = float(max(0, min(self.screen_h - 1, y)))
+
+        if self.preview_only:
+            return
+
+        if QUARTZ_AVAILABLE:
+            down = Quartz.CGEventCreateMouseEvent(
+                None, Quartz.kCGEventLeftMouseDown, (x, y), Quartz.kCGMouseButtonLeft
+            )
+            up = Quartz.CGEventCreateMouseEvent(
+                None, Quartz.kCGEventLeftMouseUp, (x, y), Quartz.kCGMouseButtonLeft
+            )
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
+        elif self._mouse_ctrl is not None:
+            self._mouse_ctrl.position = (int(x), int(y))
+            self._mouse_ctrl.click(pynput_mouse.Button.left, 1)
+
+    def start_drag(self, x: Optional[float] = None, y: Optional[float] = None) -&gt; None:
+        if self.is_dragging:
+            return
+        if x is None or y is None:
+            x, y = self.last_pos
+        self.is_dragging = True
+
+        if self.preview_only:
+            return
+
+        if QUARTZ_AVAILABLE:
+            down = Quartz.CGEventCreateMouseEvent(
+                None, Quartz.kCGEventLeftMouseDown, (x, y), Quartz.kCGMouseButtonLeft
+            )
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
+        elif self._mouse_ctrl is not None:
+            self._mouse_ctrl.press(pynput_mouse.Button.left)
+
+    def end_drag(self, x: Optional[float] = None, y: Optional[float] = None) -&gt; None:
+        if not self.is_dragging:
+            return
+        if x is None or y is None:
+            x, y = self.last_pos
+        self.is_dragging = False
+
+        if self.preview_only:
+            return
+
+        if QUARTZ_AVAILABLE:
+            up = Quartz.CGEventCreateMouseEvent(
+                None, Quartz.kCGEventLeftMouseUp, (x, y), Quartz.kCGMouseButtonLeft
+            )
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
+        elif self._mouse_ctrl is not None:
+            self._mouse_ctrl.release(pynput_mouse.Button.left)
+
+    def scroll(self, dy_pixels: float) -&gt; None:
+        if self.preview_only:
+            return
+        ticks = int(round(dy_pixels))
+        if ticks == 0:
+            return
+
+        if QUARTZ_AVAILABLE:
+            evt = Quartz.CGEventCreateScrollWheelEvent(
+                None, Quartz.kCGScrollEventUnitPixel, 1, ticks
+            )
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, evt)
+        elif self._mouse_ctrl is not None:
+            self._mouse_ctrl.scroll(0, int(round(ticks / 10.0)))
+
+    def safe_release(self) -&gt; None:
+        &quot;&quot;&quot;Guarantees any held mouse button is released on pause, hand loss, or exit.&quot;&quot;&quot;
+        if self.is_dragging:
+            self.end_drag()
+
+
+# ===========================================================================
+# Observations &amp; Gesture Processor (Hand + FaceMesh Head/Mouth)
+# ===========================================================================
+@dataclass
+class HandObservation:
+    &quot;&quot;&quot;Normalized 21-point hand landmarks in (x, y, z) where x, y are in [0, 1].&quot;&quot;&quot;
+
+    landmarks: List[Tuple[float, float, float]]
+    handedness: str  # &quot;Right&quot; or &quot;Left&quot;
+    score: float
+
+
+@dataclass
+class FaceObservation:
+    &quot;&quot;&quot;
+    Extracted face metrics from MediaPipe FaceMesh:
+    - nose_xy: normalized (x, y) of nose tip (landmark 1)
+    - pitch_ratio: vertical head pitch metric (positive = head tilted UP, negative = DOWN)
+    - mouth_mar: inner lip vertical opening / mouth width ratio (landmarks 13, 14 / 78, 308)
+    - mouth_center_xy: normalized (x, y) of mouth center
+    &quot;&quot;&quot;
+
+    nose_xy: Tuple[float, float]
+    pitch_ratio: float
+    mouth_mar: float
+    mouth_center_xy: Tuple[float, float]
+
+    @classmethod
+    def from_facemesh_landmarks(
+        cls, lm: List[Tuple[float, float, float]]
+    ) -&gt; &quot;FaceObservation&quot;:
+        # Nose tip: 1; Forehead: 10; Chin: 152; Left/Right eye outer: 33, 263
+        nose_x, nose_y, _ = lm[1]
+        forehead_y = lm[10][1]
+        chin_y = lm[152][1]
+        eye_mid_y = 0.5 * (lm[33][1] + lm[263][1])
+        face_h = max(0.08, abs(chin_y - forehead_y))
+
+        # When head tilts UP, nose moves closer to eye_mid_y (smaller nose_y in image coords)
+        # Normal nose offset below eye midpoint is ~0.36 of face_h
+        raw_nose_offset = (nose_y - eye_mid_y) / face_h
+        pitch_ratio = 0.36 - raw_nose_offset  # Positive = UP, Negative = DOWN
+
+        # Mouth Aspect Ratio (MAR): inner upper lip (13) to inner lower lip (14)
+        # divided by mouth corner width (78 to 308)
+        up_x, up_y, _ = lm[13]
+        lo_x, lo_y, _ = lm[14]
+        left_x, left_y, _ = lm[78]
+        right_x, right_y, _ = lm[308]
+
+        lip_open = math.hypot(lo_x - up_x, lo_y - up_y)
+        mouth_w = max(0.03, math.hypot(right_x - left_x, right_y - left_y))
+        mar = lip_open / mouth_w
+        mouth_cx = 0.5 * (up_x + lo_x)
+        mouth_cy = 0.5 * (up_y + lo_y)
+
+        return cls(
+            nose_xy=(nose_x, nose_y),
+            pitch_ratio=pitch_ratio,
+            mouth_mar=mar,
+            mouth_center_xy=(mouth_cx, mouth_cy),
+        )
+
+
+@dataclass
+class GestureOutput:
+    mode: str  # &quot;PAUSED&quot;, &quot;COUNTDOWN&quot;, &quot;NO HAND&quot;, &quot;MOVE&quot;, &quot;CLICK&quot;, &quot;DRAG&quot;, &quot;SCROLL&quot;, &quot;CALIBRATING&quot;
+    screen_x: float
+    screen_y: float
+    norm_x: float
+    norm_y: float
+    pinch_ratio: float
+    mouth_mar: float
+    head_pitch_delta: float
+    is_pinched: bool
+    is_mouth_open: bool
+    is_dragging: bool
+    is_scrolling: bool
+    scroll_delta: float
+    clicked_this_frame: bool
+    status_detail: str
+
+
+class HandHeadGestureProcessor:
+    &quot;&quot;&quot;
+    Combines:
+    - Hand Tracking -&gt; Stabilized Cursor Movement + Pinch-Hold Drag
+    - Face Tracking -&gt; Mouth-Open Click + Head-Pitch Up/Down Scroll
+    &quot;&quot;&quot;
+
+    def __init__(self, config: CursorConfig, pointer: MacPointerController) -&gt; None:
+        self.cfg = config
+        self.pointer = pointer
+
+        self.paused: bool = False
+        self.desktop_enabled: bool = not pointer.preview_only
+        self.countdown_start: Optional[float] = (
+            time.monotonic() if self.desktop_enabled else None
+        )
+
+        # Smoothed cursor coordinates
+        self.smooth_x: float = pointer.screen_w / 2.0
+        self.smooth_y: float = pointer.screen_h / 2.0
+        self._has_smoothed_pos: bool = False
+
+        # Stage D: Pinch &amp; Hold Drag state (Dedicated to Drag)
+        self.is_pinched: bool = False
+        self.pinch_start_time: float = 0.0
+        self.last_hand_seen_time: float = 0.0
+
+        # Mouth-Open Click state
+        self.mouth_open_state: bool = False
+        self.mouth_open_start: Optional[float] = None
+        self.mouth_click_fired_this_open: bool = False
+        self.last_click_time: float = 0.0
+
+        # Stage E: Head Pitch Scroll state
+        self.neutral_head_pitch: Optional[float] = None
+        self._pitch_calib_samples: List[float] = []
+
+        # Stage F: 4-Corner Hand Calibration state
+        self.calibrating: bool = False
+        self.calib_step: int = 0
+        self.calib_points: List[Tuple[float, float]] = []
+        self.calib_labels = [
+            &quot;TOP-LEFT corner&quot;,
+            &quot;TOP-RIGHT corner&quot;,
+            &quot;BOTTOM-RIGHT corner&quot;,
+            &quot;BOTTOM-LEFT corner&quot;,
+        ]
+
+    def toggle_pause(self) -&gt; None:
+        self.paused = not self.paused
+        if self.paused:
+            self.pointer.safe_release()
+            self._reset_gesture_states()
+
+    def recenter_head_pitch(self, current_pitch: Optional[float] = None) -&gt; None:
+        if current_pitch is not None:
+            self.neutral_head_pitch = current_pitch
+        else:
+            self.neutral_head_pitch = None
+            self._pitch_calib_samples = []
+
+    def cycle_anchor_mode(self) -&gt; str:
+        order = [&quot;blend&quot;, &quot;knuckle&quot;, &quot;tip&quot;]
+        idx = (order.index(self.cfg.anchor_mode) + 1) % len(order) if self.cfg.anchor_mode in order else 0
+        self.cfg.anchor_mode = order[idx]
+        self.cfg.save()
+        return self.cfg.anchor_mode
+
+    def toggle_desktop_control(self) -&gt; None:
+        self.desktop_enabled = not self.desktop_enabled
+        self.pointer.preview_only = not self.desktop_enabled
+        if self.desktop_enabled:
+            self.countdown_start = time.monotonic()
+        else:
+            self.countdown_start = None
+            self.pointer.safe_release()
+
+    def start_calibration(self) -&gt; None:
+        self.pointer.safe_release()
+        self._reset_gesture_states()
+        self.calibrating = True
+        self.calib_step = 0
+        self.calib_points = []
+
+    def record_calibration_point(self, raw_ix: float, raw_iy: float) -&gt; Optional[str]:
+        if not self.calibrating:
+            return None
+        self.calib_points.append((raw_ix, raw_iy))
+        self.calib_step += 1
+        if self.calib_step &gt;= 4:
+            xs = [p[0] for p in self.calib_points]
+            ys = [p[1] for p in self.calib_points]
+            self.cfg.roi_left = round(max(0.02, min(0.42, min(xs))), 3)
+            self.cfg.roi_right = round(min(0.98, max(0.58, max(xs))), 3)
+            self.cfg.roi_top = round(max(0.02, min(0.42, min(ys))), 3)
+            self.cfg.roi_bottom = round(min(0.98, max(0.58, max(ys))), 3)
+            self.cfg.save()
+            self.calibrating = False
+            return &quot;Calibration saved!&quot;
+        return f&quot;Captured point {self.calib_step}/4&quot;
+
+    def _reset_gesture_states(self) -&gt; None:
+        self.is_pinched = False
+        self.mouth_open_state = False
+        self.mouth_open_start = None
+        self.mouth_click_fired_this_open = False
+        self.pointer.safe_release()
+
+    # -----------------------------------------------------------------------
+    # Stage B: Stabilized Hand Anchor + Precision Acceleration Curve
+    # -----------------------------------------------------------------------
+    def get_hand_anchor(self, lm: List[Tuple[float, float, float]]) -&gt; Tuple[float, float]:
+        &quot;&quot;&quot;
+        Computes a rock-solid tracking point on the hand.
+        - &#x27;blend&#x27; (default): 70% Index MCP Knuckle (5) + 30% Index Tip (8).
+          Prevents cursor jumping when fingers bend or pinch!
+        - &#x27;knuckle&#x27;: 100% Index MCP Knuckle (5) for maximum stability.
+        - &#x27;tip&#x27;: 100% Index Fingertip (8).
+        &quot;&quot;&quot;
+        if self.cfg.anchor_mode == &quot;knuckle&quot;:
+            return lm[5][0], lm[5][1]
+        if self.cfg.anchor_mode == &quot;tip&quot;:
+            return lm[8][0], lm[8][1]
+        return 0.70 * lm[5][0] + 0.30 * lm[8][0], 0.70 * lm[5][1] + 0.30 * lm[8][1]
+
+    def map_to_screen(self, raw_x: float, raw_y: float) -&gt; Tuple[float, float, float, float]:
+        w_roi = max(0.10, self.cfg.roi_right - self.cfg.roi_left)
+        h_roi = max(0.10, self.cfg.roi_bottom - self.cfg.roi_top)
+
+        nx = (raw_x - self.cfg.roi_left) / w_roi
+        ny = (raw_y - self.cfg.roi_top) / h_roi
+
+        # Centered coordinates in [-1, 1]
+        cx = (nx - 0.5) * 2.0
+        cy = (ny - 0.5) * 2.0
+
+        # True precision curve: exponent &gt; 1.0 makes small movements near center
+        # gentler/steadier, while larger movements smoothly reach corners!
+        exp = max(1.0, self.cfg.precision_exponent)
+        cx_curved = math.copysign(abs(cx) ** exp, cx)
+        cy_curved = math.copysign(abs(cy) ** exp, cy)
+
+        nx_out = max(0.0, min(1.0, 0.5 + (cx_curved * self.cfg.cursor_speed) / 2.0))
+        ny_out = max(0.0, min(1.0, 0.5 + (cy_curved * self.cfg.cursor_speed) / 2.0))
+
+        target_x = nx_out * (self.pointer.screen_w - 1)
+        target_y = ny_out * (self.pointer.screen_h - 1)
+
+        if not self._has_smoothed_pos:
+            self.smooth_x = target_x
+            self.smooth_y = target_y
+            self._has_smoothed_pos = True
+        else:
+            dx = target_x - self.smooth_x
+            dy = target_y - self.smooth_y
+            dist = math.hypot(dx, dy)
+
+            if dist &gt;= self.cfg.jitter_deadzone_px:
+                # 1-Euro style velocity-adaptive alpha:
+                # Slow movements -&gt; base_smoothing (0.16) for rock-solid precision
+                # Fast movements -&gt; scales up to max_smoothing (0.78) for zero lag
+                vel_norm = min(1.0, dist / 110.0)
+                alpha = self.cfg.base_smoothing + vel_norm * (
+                    self.cfg.max_smoothing - self.cfg.base_smoothing
+                )
+                self.smooth_x += dx * alpha
+                self.smooth_y += dy * alpha
+
+        return (
+            self.smooth_x,
+            self.smooth_y,
+            self.smooth_x / max(1, self.pointer.screen_w - 1),
+            self.smooth_y / max(1, self.pointer.screen_h - 1),
+        )
+
+    @staticmethod
+    def compute_pinch_ratio(lm: List[Tuple[float, float, float]]) -&gt; float:
+        tx, ty, _ = lm[4]
+        ix, iy, _ = lm[8]
+        wx, wy, _ = lm[0]
+        mx, my, _ = lm[9]
+        pinch_dist = math.hypot(ix - tx, iy - ty)
+        palm_len = max(0.04, math.hypot(mx - wx, my - wy))
+        return pinch_dist / palm_len
+
+    # -----------------------------------------------------------------------
+    # Main Per-Frame Processing Step (Hand + Face)
+    # -----------------------------------------------------------------------
+    def process(
+        self,
+        hand: Optional[HandObservation],
+        face: Optional[FaceObservation] = None,
+        now: Optional[float] = None,
+    ) -&gt; GestureOutput:
+        if now is None:
+            now = time.monotonic()
+
+        # 1. Check Pause
+        if self.paused:
+            return GestureOutput(
+                mode=&quot;PAUSED&quot;,
+                screen_x=self.smooth_x,
+                screen_y=self.smooth_y,
+                norm_x=self.smooth_x / max(1, self.pointer.screen_w),
+                norm_y=self.smooth_y / max(1, self.pointer.screen_h),
+                pinch_ratio=1.0,
+                mouth_mar=0.0,
+                head_pitch_delta=0.0,
+                is_pinched=False,
+                is_mouth_open=False,
+                is_dragging=False,
+                is_scrolling=False,
+                scroll_delta=0.0,
+                clicked_this_frame=False,
+                status_detail=&quot;Tracking paused — safe to use physical mouse &amp; keyboard&quot;,
+            )
+
+        # 2. Check Startup Countdown
+        in_countdown = False
+        countdown_rem = 0.0
+        if self.countdown_start is not None:
+            elapsed = now - self.countdown_start
+            if elapsed &lt; self.cfg.startup_countdown_s:
+                in_countdown = True
+                countdown_rem = self.cfg.startup_countdown_s - elapsed
+            else:
+                self.countdown_start = None
+
+        # 3. Evaluate Face: Head-Pitch Scroll &amp; Mouth-Open Click
+        mouth_mar = 0.0
+        head_pitch_delta = 0.0
+        scroll_delta = 0.0
+        is_scrolling = False
+        clicked_this_frame = False
+
+        if face is not None:
+            mouth_mar = face.mouth_mar
+
+            # Calibrate neutral head pitch automatically over initial frames
+            if self.neutral_head_pitch is None:
+                self._pitch_calib_samples.append(face.pitch_ratio)
+                if len(self._pitch_calib_samples) &gt;= 10:
+                    self.neutral_head_pitch = sum(self._pitch_calib_samples) / len(
+                        self._pitch_calib_samples
+                    )
+                else:
+                    self.neutral_head_pitch = face.pitch_ratio
+
+            head_pitch_delta = face.pitch_ratio - self.neutral_head_pitch
+
+            if not in_countdown and not self.calibrating:
+                # Mouth-Open Click with hysteresis &amp; debounce
+                if self.cfg.mouth_click_enabled and not self.pointer.is_dragging:
+                    if not self.mouth_open_state:
+                        if mouth_mar &gt;= self.cfg.mouth_enter_thresh:
+                            if self.mouth_open_start is None:
+                                self.mouth_open_start = now
+                            elif (now - self.mouth_open_start) &gt;= self.cfg.mouth_debounce_s:
+                                self.mouth_open_state = True
+                                if (now - self.last_click_time) &gt;= self.cfg.click_cooldown_s:
+                                    self.last_click_time = now
+                                    self.mouth_click_fired_this_open = True
+                                    clicked_this_frame = True
+                                    self.pointer.click(self.smooth_x, self.smooth_y)
+                        else:
+                            self.mouth_open_start = None
+                    else:
+                        if mouth_mar &lt;= self.cfg.mouth_exit_thresh:
+                            self.mouth_open_state = False
+                            self.mouth_open_start = None
+                            self.mouth_click_fired_this_open = False
+
+                # Head Pitch Up/Down Scroll (when not dragging)
+                if self.cfg.head_scroll_enabled and not self.pointer.is_dragging:
+                    if abs(head_pitch_delta) &gt; self.cfg.head_deadzone_norm:
+                        is_scrolling = True
+                        eff = math.copysign(
+                            abs(head_pitch_delta) - self.cfg.head_deadzone_norm,
+                            head_pitch_delta,
+                        )
+                        scroll_delta = eff * self.cfg.head_scroll_speed * 10.0
+                        self.pointer.scroll(scroll_delta)
+
+        # 4. Evaluate Hand: Cursor Movement &amp; Pinch-Hold Drag
+        if hand is None or (
+            self.cfg.handedness != &quot;Any&quot;
+            and hand.handedness.lower() != self.cfg.handedness.lower()
+        ):
+            if (
+                self.pointer.is_dragging
+                and (now - self.last_hand_seen_time) &lt;= self.cfg.lost_hand_drag_grace_s
+            ):
+                return GestureOutput(
+                    mode=&quot;DRAG&quot;,
+                    screen_x=self.smooth_x,
+                    screen_y=self.smooth_y,
+                    norm_x=self.smooth_x / max(1, self.pointer.screen_w),
+                    norm_y=self.smooth_y / max(1, self.pointer.screen_h),
+                    pinch_ratio=self.cfg.pinch_enter_thresh,
+                    mouth_mar=mouth_mar,
+                    head_pitch_delta=head_pitch_delta,
+                    is_pinched=True,
+                    is_mouth_open=self.mouth_open_state,
+                    is_dragging=True,
+                    is_scrolling=False,
+                    scroll_delta=0.0,
+                    clicked_this_frame=False,
+                    status_detail=&quot;Holding drag across brief hand tracking gap...&quot;,
+                )
+
+            self.is_pinched = False
+            self.pointer.safe_release()
+
+            # Even if hand is down, head scroll or mouth click at current cursor position works!
+            if clicked_this_frame:
+                mode_no_hand = &quot;CLICK&quot;
+                detail_no_hand = &quot;Mouth Click triggered (hand resting)&quot;
+            elif is_scrolling:
+                direction = &quot;UP&quot; if scroll_delta &gt; 0 else &quot;DOWN&quot;
+                mode_no_hand = &quot;SCROLL&quot;
+                detail_no_hand = f&quot;Head Scroll {direction} ({scroll_delta:+.1f})&quot;
+            else:
+                mode_no_hand = &quot;NO HAND&quot;
+                detail_no_hand = &quot;Hand not detected — pointer movement stopped&quot;
+
+            return GestureOutput(
+                mode=mode_no_hand,
+                screen_x=self.smooth_x,
+                screen_y=self.smooth_y,
+                norm_x=self.smooth_x / max(1, self.pointer.screen_w),
+                norm_y=self.smooth_y / max(1, self.pointer.screen_h),
+                pinch_ratio=1.0,
+                mouth_mar=mouth_mar,
+                head_pitch_delta=head_pitch_delta,
+                is_pinched=False,
+                is_mouth_open=self.mouth_open_state,
+                is_dragging=False,
+                is_scrolling=is_scrolling,
+                scroll_delta=scroll_delta,
+                clicked_this_frame=clicked_this_frame,
+                status_detail=detail_no_hand,
+            )
+
+        self.last_hand_seen_time = now
+        lm = hand.landmarks
+        ax, ay = self.get_hand_anchor(lm)
+        pinch_ratio = self.compute_pinch_ratio(lm)
+
+        # 5. Calibration Wizard
+        if self.calibrating:
+            sx, sy, nx, ny = self.map_to_screen(ax, ay)
+            was_pinched = self.is_pinched
+            if not self.is_pinched and (
+                pinch_ratio &lt; self.cfg.pinch_enter_thresh or clicked_this_frame
+            ):
+                self.is_pinched = True
+            elif self.is_pinched and pinch_ratio &gt; self.cfg.pinch_exit_thresh:
+                self.is_pinched = False
+                if was_pinched:
+                    self.record_calibration_point(ax, ay)
+
+            step_idx = min(self.calib_step, 3)
+            return GestureOutput(
+                mode=&quot;CALIBRATING&quot;,
+                screen_x=sx,
+                screen_y=sy,
+                norm_x=nx,
+                norm_y=ny,
+                pinch_ratio=pinch_ratio,
+                mouth_mar=mouth_mar,
+                head_pitch_delta=head_pitch_delta,
+                is_pinched=self.is_pinched,
+                is_mouth_open=self.mouth_open_state,
+                is_dragging=False,
+                is_scrolling=False,
+                scroll_delta=0.0,
+                clicked_this_frame=False,
+                status_detail=f&quot;Point at {self.calib_labels[step_idx]} &amp; Pinch/Mouth-Click ({self.calib_step + 1}/4)&quot;,
+            )
+
+        sx, sy, nx, ny = self.map_to_screen(ax, ay)
+
+        if in_countdown:
+            return GestureOutput(
+                mode=&quot;COUNTDOWN&quot;,
+                screen_x=sx,
+                screen_y=sy,
+                norm_x=nx,
+                norm_y=ny,
+                pinch_ratio=pinch_ratio,
+                mouth_mar=mouth_mar,
+                head_pitch_delta=head_pitch_delta,
+                is_pinched=False,
+                is_mouth_open=False,
+                is_dragging=False,
+                is_scrolling=False,
+                scroll_delta=0.0,
+                clicked_this_frame=False,
+                status_detail=f&quot;Desktop control begins in {countdown_rem:.1f}s...&quot;,
+            )
+
+        # 6. Dedicated Pinch &amp; Hold Drag (never triggers accidental click)
+        if not self.is_pinched:
+            if pinch_ratio &lt; self.cfg.pinch_enter_thresh:
+                self.is_pinched = True
+                self.pinch_start_time = now
+        else:
+            if pinch_ratio &gt; self.cfg.pinch_exit_thresh:
+                self.is_pinched = False
+                if self.pointer.is_dragging:
+                    self.pointer.end_drag(sx, sy)
+                    return GestureOutput(
+                        mode=&quot;MOVE&quot;,
+                        screen_x=sx,
+                        screen_y=sy,
+                        norm_x=nx,
+                        norm_y=ny,
+                        pinch_ratio=pinch_ratio,
+                        mouth_mar=mouth_mar,
+                        head_pitch_delta=head_pitch_delta,
+                        is_pinched=False,
+                        is_mouth_open=self.mouth_open_state,
+                        is_dragging=False,
+                        is_scrolling=is_scrolling,
+                        scroll_delta=scroll_delta,
+                        clicked_this_frame=False,
+                        status_detail=&quot;Drag released (Drop)&quot;,
+                    )
+            else:
+                if (
+                    not self.pointer.is_dragging
+                    and (now - self.pinch_start_time) &gt;= self.cfg.drag_hold_delay_s
+                ):
+                    self.pointer.start_drag(sx, sy)
+
+        self.pointer.move(sx, sy)
+
+        if self.pointer.is_dragging:
+            return GestureOutput(
+                mode=&quot;DRAG&quot;,
+                screen_x=sx,
+                screen_y=sy,
+                norm_x=nx,
+                norm_y=ny,
+                pinch_ratio=pinch_ratio,
+                mouth_mar=mouth_mar,
+                head_pitch_delta=head_pitch_delta,
+                is_pinched=True,
+                is_mouth_open=self.mouth_open_state,
+                is_dragging=True,
+                is_scrolling=False,
+                scroll_delta=0.0,
+                clicked_this_frame=False,
+                status_detail=&quot;Dragging with Pinch — release pinch to drop&quot;,
+            )
+
+        if clicked_this_frame or self.mouth_open_state:
+            return GestureOutput(
+                mode=&quot;CLICK&quot;,
+                screen_x=sx,
+                screen_y=sy,
+                norm_x=nx,
+                norm_y=ny,
+                pinch_ratio=pinch_ratio,
+                mouth_mar=mouth_mar,
+                head_pitch_delta=head_pitch_delta,
+                is_pinched=self.is_pinched,
+                is_mouth_open=True,
+                is_dragging=False,
+                is_scrolling=is_scrolling,
+                scroll_delta=scroll_delta,
+                clicked_this_frame=clicked_this_frame,
+                status_detail=&quot;Mouth-Open Click triggered!&quot;,
+            )
+
+        if is_scrolling:
+            direction = &quot;UP&quot; if scroll_delta &gt; 0 else &quot;DOWN&quot;
+            return GestureOutput(
+                mode=&quot;SCROLL&quot;,
+                screen_x=sx,
+                screen_y=sy,
+                norm_x=nx,
+                norm_y=ny,
+                pinch_ratio=pinch_ratio,
+                mouth_mar=mouth_mar,
+                head_pitch_delta=head_pitch_delta,
+                is_pinched=self.is_pinched,
+                is_mouth_open=False,
+                is_dragging=False,
+                is_scrolling=True,
+                scroll_delta=scroll_delta,
+                clicked_this_frame=False,
+                status_detail=f&quot;Head Tilt Scroll {direction} (speed: {scroll_delta:+.1f})&quot;,
+            )
+
+        detail = (
+            &quot;Holding pinch — keep holding to start drag&quot;
+            if self.is_pinched
+            else f&quot;Moving cursor ({self.cfg.anchor_mode} anchor) | Open mouth to Click | Tilt head to Scroll&quot;
+        )
+        return GestureOutput(
+            mode=&quot;MOVE&quot;,
+            screen_x=sx,
+            screen_y=sy,
+            norm_x=nx,
+            norm_y=ny,
+            pinch_ratio=pinch_ratio,
+            mouth_mar=mouth_mar,
+            head_pitch_delta=head_pitch_delta,
+            is_pinched=self.is_pinched,
+            is_mouth_open=False,
+            is_dragging=False,
+            is_scrolling=False,
+            scroll_delta=0.0,
+            clicked_this_frame=False,
+            status_detail=detail,
+        )
+
+
+# ===========================================================================
+# OpenCV Camera HUD, Landmarks &amp; On-Screen Controls
+# ===========================================================================
+HAND_CONNECTIONS = [
+    (0, 1), (1, 2), (2, 3), (3, 4),
+    (0, 5), (5, 6), (6, 7), (7, 8),
+    (5, 9), (9, 10), (10, 11), (11, 12),
+    (9, 13), (13, 14), (14, 15), (15, 16),
+    (13, 17), (0, 17), (17, 18), (18, 19), (19, 20),
+]
+
+MODE_COLORS_BGR: Dict[str, Tuple[int, int, int]] = {
+    &quot;MOVE&quot;: (230, 200, 40),       # Cyan-Teal
+    &quot;CLICK&quot;: (80, 230, 100),      # Bright Green (Mouth Click)
+    &quot;DRAG&quot;: (50, 150, 255),       # Vibrant Orange (Pinch Drag)
+    &quot;SCROLL&quot;: (250, 130, 180),    # Purple-Pink (Head Scroll)
+    &quot;PAUSED&quot;: (90, 90, 235),      # Red
+    &quot;NO HAND&quot;: (110, 110, 140),   # Muted Gray-Red
+    &quot;COUNTDOWN&quot;: (60, 210, 255),  # Amber
+    &quot;CALIBRATING&quot;: (255, 210, 60),
+}
+
+
+class HandCursorHUD:
+    &quot;&quot;&quot;Renders camera preview, hand &amp; face overlays, virtual cursor, and buttons.&quot;&quot;&quot;
+
+    def __init__(self, processor: HandHeadGestureProcessor) -&gt; None:
+        self.proc = processor
+        self.buttons: List[Tuple[str, Tuple[int, int, int, int]]] = []
+        self.settings_open: bool = False
+        self.settings_win: str = &quot;Hand + Head Cursor Settings&quot;
+        self.last_face: Optional[FaceObservation] = None
+
+    def toggle_settings_window(self) -&gt; None:
+        cfg = self.proc.cfg
+        if not self.settings_open:
+            cv2.namedWindow(self.settings_win, cv2.WINDOW_NORMAL)
+            cv2.resizeWindow(self.settings_win, 440, 340)
+            cv2.createTrackbar(
+                &quot;Smooth %&quot;,
+                self.settings_win,
+                int(cfg.base_smoothing * 100),
+                70,
+                lambda v: setattr(cfg, &quot;base_smoothing&quot;, max(0.05, v / 100.0)),
+            )
+            cv2.createTrackbar(
+                &quot;Speed %&quot;,
+                self.settings_win,
+                int(cfg.cursor_speed * 100),
+                220,
+                lambda v: setattr(cfg, &quot;cursor_speed&quot;, max(0.60, v / 100.0)),
+            )
+            cv2.createTrackbar(
+                &quot;Mouth Clk%&quot;,
+                self.settings_win,
+                int(cfg.mouth_enter_thresh * 100),
+                55,
+                lambda v: setattr(cfg, &quot;mouth_enter_thresh&quot;, max(0.15, v / 100.0)),
+            )
+            cv2.createTrackbar(
+                &quot;Pinch Drag%&quot;,
+                self.settings_win,
+                int(cfg.pinch_enter_thresh * 100),
+                48,
+                lambda v: setattr(cfg, &quot;pinch_enter_thresh&quot;, max(0.14, v / 100.0)),
+            )
+            cv2.createTrackbar(
+                &quot;Head Scrl&quot;,
+                self.settings_win,
+                int(cfg.head_scroll_speed),
+                80,
+                lambda v: setattr(cfg, &quot;head_scroll_speed&quot;, float(max(5, v))),
+            )
+            self.settings_open = True
+        else:
+            try:
+                cv2.destroyWindow(self.settings_win)
+            except Exception:
+                pass
+            cfg.save()
+            self.settings_open = False
+
+    def handle_mouse_event(
+        self, event: int, x: int, y: int, flags: int, param: object
+    ) -&gt; None:
+        if event != cv2.EVENT_LBUTTONDOWN:
+            return
+        for name, (bx1, by1, bx2, by2) in self.buttons:
+            if bx1 &lt;= x &lt;= bx2 and by1 &lt;= y &lt;= by2:
+                if name == &quot;pause&quot;:
+                    self.proc.toggle_pause()
+                elif name == &quot;desktop&quot;:
+                    self.proc.toggle_desktop_control()
+                elif name == &quot;recenter_head&quot;:
+                    pitch = self.last_face.pitch_ratio if self.last_face else None
+                    self.proc.recenter_head_pitch(pitch)
+                elif name == &quot;anchor&quot;:
+                    self.proc.cycle_anchor_mode()
+                elif name == &quot;calibrate&quot;:
+                    if self.proc.calibrating:
+                        self.proc.calibrating = False
+                    else:
+                        self.proc.start_calibration()
+                elif name == &quot;settings&quot;:
+                    self.toggle_settings_window()
+
+    def draw(
+        self,
+        frame: np.ndarray,
+        hand: Optional[HandObservation],
+        face: Optional[FaceObservation],
+        out: GestureOutput,
+        fps: float,
+    ) -&gt; np.ndarray:
+        self.last_face = face
+        h, w = frame.shape[:2]
+        cfg = self.proc.cfg
+        color = MODE_COLORS_BGR.get(out.mode, (200, 200, 200))
+
+        # 1. Draw Active Hand Tracking Rectangle
+        rx1, ry1 = int(cfg.roi_left * w), int(cfg.roi_top * h)
+        rx2, ry2 = int(cfg.roi_right * w), int(cfg.roi_bottom * h)
+        cv2.rectangle(frame, (rx1, ry1), (rx2, ry2), (170, 175, 185), 1, cv2.LINE_AA)
+        cv2.putText(
+            frame,
+            f&quot;Hand Tracking Zone (Anchor: {cfg.anchor_mode})&quot;,
+            (rx1 + 8, max(72, ry1 - 8)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.46,
+            (210, 215, 225),
+            1,
+            cv2.LINE_AA,
+        )
+
+        # 2. Draw Face Overlay: Nose Pitch Scroll Band &amp; Mouth Click Indicator
+        if face is not None:
+            nx_px = int(face.nose_xy[0] * w)
+            ny_px = int(face.nose_xy[1] * h)
+            dz_px = int(cfg.head_deadzone_norm * h * 0.45)
+            neutral_y = int(ny_px + out.head_pitch_delta * h * 0.45)
+
+            # Neutral head pitch band
+            cv2.rectangle(
+                frame,
+                (nx_px - 45, neutral_y - dz_px),
+                (nx_px + 45, neutral_y + dz_px),
+                (230, 130, 200),
+                1,
+                cv2.LINE_AA,
+            )
+            cv2.circle(
+                frame,
+                (nx_px, ny_px),
+                7,
+                (250, 140, 250) if out.is_scrolling else (230, 230, 240),
+                -1,
+                cv2.LINE_AA,
+            )
+
+            # Mouth Click circle
+            mx_px = int(face.mouth_center_xy[0] * w)
+            my_px = int(face.mouth_center_xy[1] * h)
+            mouth_col = (80, 240, 120) if out.is_mouth_open else (160, 210, 160)
+            cv2.circle(
+                frame,
+                (mx_px, my_px),
+                14 if out.is_mouth_open else 9,
+                mouth_col,
+                2,
+                cv2.LINE_AA,
+            )
+
+        # 3. Draw Hand Skeleton &amp; Stabilized Anchor Point
+        if hand is not None:
+            pts = [(int(lm[0] * w), int(lm[1] * h)) for lm in hand.landmarks]
+            for i, j in HAND_CONNECTIONS:
+                cv2.line(frame, pts[i], pts[j], (180, 220, 180), 2, cv2.LINE_AA)
+            for idx, pt in enumerate(pts):
+                radius = 5 if idx in (4, 5, 8) else 3
+                cv2.circle(frame, pt, radius, (255, 255, 255), -1, cv2.LINE_AA)
+
+            ax, ay = self.proc.get_hand_anchor(hand.landmarks)
+            apx, apy = int(ax * w), int(ay * h)
+            cv2.circle(frame, (apx, apy), 12, color, 2, cv2.LINE_AA)
+            cv2.circle(frame, (apx, apy), 4, color, -1, cv2.LINE_AA)
+
+            if out.is_pinched or out.is_dragging:
+                cv2.line(frame, pts[4], pts[8], (50, 150, 255), 3, cv2.LINE_AA)
+
+        # 4. Draw Virtual Cursor Preview Crosshair
+        pv_x = int(out.norm_x * (w - 1))
+        pv_y = int(out.norm_y * (h - 1))
+        cv2.circle(frame, (pv_x, pv_y), 14, color, 2, cv2.LINE_AA)
+        cv2.line(frame, (pv_x - 20, pv_y), (pv_x + 20, pv_y), color, 1, cv2.LINE_AA)
+        cv2.line(frame, (pv_x, pv_y - 20), (pv_x, pv_y + 20), color, 1, cv2.LINE_AA)
+
+        # 5. Top Status Banner
+        overlay = frame.copy()
+        cv2.rectangle(overlay, (0, 0), (w, 58), (22, 24, 30), -1)
+        cv2.addWeighted(overlay, 0.84, frame, 0.16, 0, frame)
+
+        cv2.rectangle(frame, (14, 10), (165, 48), color, -1)
+        cv2.putText(
+            frame,
+            out.mode,
+            (26, 35),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.72,
+            (18, 18, 22),
+            2,
+            cv2.LINE_AA,
+        )
+
+        cv2.putText(
+            frame,
+            out.status_detail,
+            (180, 28),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.54,
+            (240, 240, 245),
+            1,
+            cv2.LINE_AA,
+        )
+        sub_info = (
+            f&quot;Mouth MAR: {out.mouth_mar:.2f} (Click&gt;{cfg.mouth_enter_thresh:.2f}) | &quot;
+            f&quot;Head Pitch: {out.head_pitch_delta:+.3f} | &quot;
+            f&quot;Pinch Drag: {out.pinch_ratio:.2f} (&lt;{cfg.pinch_enter_thresh:.2f}) | {fps:.0f} FPS&quot;
+        )
+        cv2.putText(
+            frame,
+            sub_info,
+            (180, 48),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.42,
+            (175, 185, 195),
+            1,
+            cv2.LINE_AA,
+        )
+
+        # 6. Bottom Interactive Control Bar
+        self.buttons = []
+        bar_y1 = h - 46
+        cv2.rectangle(frame, (0, bar_y1), (w, h), (22, 24, 30), -1)
+
+        btn_specs = [
+            (&quot;pause&quot;, &quot;RESUME (Space)&quot; if self.proc.paused else &quot;PAUSE (Space)&quot;),
+            (&quot;desktop&quot;, f&quot;Desktop: {&#x27;ON&#x27; if self.proc.desktop_enabled else &#x27;PREVIEW&#x27;} (D)&quot;),
+            (&quot;recenter_head&quot;, &quot;Center Head (N)&quot;),
+            (&quot;anchor&quot;, f&quot;Anchor: {cfg.anchor_mode} (A)&quot;),
+            (&quot;calibrate&quot;, &quot;Calibrate Hand (C)&quot;),
+            (&quot;settings&quot;, &quot;Sliders (S)&quot;),
+        ]
+        bx = 12
+        for key, label in btn_specs:
+            bw = max(110, len(label) * 8 + 16)
+            by1, by2 = bar_y1 + 8, h - 8
+            bx2 = bx + bw
+            cv2.rectangle(frame, (bx, by1), (bx2, by2), (55, 62, 78), -1)
+            cv2.rectangle(frame, (bx, by1), (bx2, by2), (110, 120, 145), 1)
+            cv2.putText(
+                frame,
+                label,
+                (bx + 8, by1 + 20),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.41,
+                (235, 240, 245),
+                1,
+                cv2.LINE_AA,
+            )
+            self.buttons.append((key, (bx, by1, bx2, by2)))
+            bx = bx2 + 8
+
+        return frame
+
+
+# ===========================================================================
+# Self-Test Suite (Verifies Hand Move, Mouth Click, Pinch Drag &amp; Head Scroll)
+# ===========================================================================
+def run_self_test() -&gt; int:
+    print(&quot;Running Upgraded Hand + Head/Mouth Cursor Self-Test...&quot;)
+    cfg = CursorConfig()
+    pointer = MacPointerController(preview_only=True)
+    proc = HandHeadGestureProcessor(cfg, pointer)
+    proc.countdown_start = None
+
+    def make_hand(
+        ix: float = 0.5, iy: float = 0.5, pinch_dist: float = 0.12
+    ) -&gt; HandObservation:
+        lm = [(0.5, 0.7, 0.0) for _ in range(21)]
+        lm[0] = (0.5, 0.85, 0.0)
+        lm[9] = (0.5, 0.65, 0.0)  # palm_len = 0.20
+        lm[5] = (ix, iy, 0.0)     # Index MCP knuckle
+        lm[8] = (ix, iy, 0.0)     # Index tip
+        lm[4] = (ix + pinch_dist, iy, 0.0)
+        return HandObservation(landmarks=lm, handedness=&quot;Right&quot;, score=0.98)
+
+    def make_face(pitch: float = 0.0, mar: float = 0.08) -&gt; FaceObservation:
+        return FaceObservation(
+            nose_xy=(0.5, 0.5 - pitch),
+            pitch_ratio=pitch,
+            mouth_mar=mar,
+            mouth_center_xy=(0.5, 0.62),
+        )
+
+    t = 100.0
+    # 1. Missing hand safety
+    out = proc.process(None, make_face(0.0, 0.05), now=t)
+    assert out.mode == &quot;NO HAND&quot;
+    print(&quot;  [PASS] Stage A: Missing hand stops pointer movement safely&quot;)
+
+    # 2. Stabilized Cursor Move to all corners
+    for _ in range(20):
+        t += 0.02
+        out_br = proc.process(
+            make_hand(ix=cfg.roi_right, iy=cfg.roi_bottom), make_face(0.0, 0.05), now=t
+        )
+    assert out_br.mode == &quot;MOVE&quot; and out_br.screen_x &gt; pointer.screen_w * 0.85
+    print(&quot;  [PASS] Stage B &amp; C: Stabilized anchor maps smoothly to screen corners&quot;)
+
+    # 3. Mouth-Open Click (Decoupled from Pinch!)
+    t += 0.5
+    proc.process(make_hand(), make_face(pitch=0.0, mar=0.34), now=t)
+    t += cfg.mouth_debounce_s + 0.02
+    out_mclick = proc.process(make_hand(), make_face(pitch=0.0, mar=0.34), now=t)
+    assert out_mclick.clicked_this_frame and out_mclick.mode == &quot;CLICK&quot;
+    # Close mouth
+    t += 0.1
+    proc.process(make_hand(), make_face(pitch=0.0, mar=0.08), now=t)
+    print(&quot;  [PASS] Mouth Click: Opening mouth triggers crisp single click without hand movement&quot;)
+
+    # 4. Pinch &amp; Hold Dedicated to Drag (Never triggers stray click on quick pinch)
+    t += 0.5
+    proc.process(make_hand(ix=0.45, iy=0.45, pinch_dist=0.02), make_face(), now=t)
+    t += cfg.drag_hold_delay_s + 0.05
+    out_drag = proc.process(make_hand(ix=0.55, iy=0.55, pinch_dist=0.02), make_face(), now=t)
+    assert out_drag.mode == &quot;DRAG&quot; and out_drag.is_dragging
+    t += 0.1
+    out_drop = proc.process(make_hand(ix=0.55, iy=0.55, pinch_dist=0.12), make_face(), now=t)
+    assert not out_drop.is_dragging and out_drop.mode == &quot;MOVE&quot;
+    print(&quot;  [PASS] Pinch Drag: Pinch &amp; hold drags and drops cleanly without click confusion&quot;)
+
+    # 5. Head Movement (Pitch Up / Down) Scrolling
+    t += 0.2
+    out_scroll_up = proc.process(make_hand(), make_face(pitch=0.09, mar=0.08), now=t)
+    assert out_scroll_up.mode == &quot;SCROLL&quot; and out_scroll_up.scroll_delta &gt; 0
+    out_scroll_dn = proc.process(make_hand(), make_face(pitch=-0.09, mar=0.08), now=t + 0.05)
+    assert out_scroll_dn.mode == &quot;SCROLL&quot; and out_scroll_dn.scroll_delta &lt; 0
+    print(&quot;  [PASS] Head Scroll: Tilting head UP scrolls up, tilting head DOWN scrolls down&quot;)
+
+    print(&quot;All upgraded Hand + Head/Mouth self-tests passed!&quot;)
+    return 0
+
+
+# ===========================================================================
+# Main Application Loop
+# ===========================================================================
+def main() -&gt; int:
+    parser = argparse.ArgumentParser(
+        description=&quot;Local Hand + Head/Mouth Cursor for macOS&quot;
+    )
+    parser.add_argument(&quot;--camera&quot;, type=int, default=None, help=&quot;Camera index (default: 0)&quot;)
+    parser.add_argument(
+        &quot;--preview-only&quot;,
+        action=&quot;store_true&quot;,
+        help=&quot;Start in safe Preview-Only mode without moving the system cursor&quot;,
+    )
+    parser.add_argument(
+        &quot;--self-test&quot;,
+        action=&quot;store_true&quot;,
+        help=&quot;Run automated headless verification and exit&quot;,
+    )
+    args = parser.parse_args()
+
+    if args.self_test:
+        return run_self_test()
+
+    if not MP_AVAILABLE:
+        print(
+            &quot;[error] MediaPipe is not installed in this Python environment.\n&quot;
+            &quot;Install required packages with:\n&quot;
+            &quot;  pip install opencv-python mediapipe numpy pyobjc-framework-Quartz pynput&quot;
+        )
+        return 1
+
+    cfg = CursorConfig.load()
+    if args.camera is not None:
+        cfg.camera_index = args.camera
+
+    pointer = MacPointerController(preview_only=args.preview_only)
+    processor = HandHeadGestureProcessor(cfg, pointer)
+    hud = HandCursorHUD(processor)
+
+    atexit.register(pointer.safe_release)
+    signal.signal(signal.SIGINT, lambda *_: sys.exit(0))
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+
+    global_listener = None
+    if PYNPUT_AVAILABLE and pynput_keyboard is not None:
+        try:
+            global_listener = pynput_keyboard.GlobalHotKeys(
+                {&quot;&lt;cmd&gt;+&lt;shift&gt;+p&quot;: processor.toggle_pause}
+            )
+            global_listener.start()
+        except Exception:
+            global_listener = None
+
+    cap = cv2.VideoCapture(cfg.camera_index)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, cfg.frame_width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, cfg.frame_height)
+
+    if not cap.isOpened():
+        print(
+            f&quot;[error] Could not open camera index {cfg.camera_index}. &quot;
+            &quot;Check macOS System Settings -&gt; Privacy &amp; Security -&gt; Camera.&quot;
+        )
+        return 1
+
+    win_name = &quot;Local Hand + Head/Mouth Cursor (macOS)&quot;
+    cv2.namedWindow(win_name, cv2.WINDOW_NORMAL)
+    cv2.setMouseCallback(win_name, hud.handle_mouse_event)
+
+    mp_hands = mp.solutions.hands
+    mp_face_mesh = mp.solutions.face_mesh
+    prev_time = time.monotonic()
+    fps = 30.0
+
+    print(f&quot;Started {win_name} | Backend: {pointer.backend_name}&quot;)
+    print(
+        &quot;Controls: [SPACE/P] Pause | [N] Center Head | [A] Anchor Mode | &quot;
+        &quot;[D] Desktop Control | [C] Calibrate | [S] Sliders | [Q] Quit&quot;
+    )
+
+    try:
+        with mp_hands.Hands(
+            static_image_mode=False,
+            max_num_hands=1,
+            model_complexity=1,
+            min_detection_confidence=cfg.min_detection_confidence,
+            min_tracking_confidence=cfg.min_tracking_confidence,
+        ) as hands, mp_face_mesh.FaceMesh(
+            static_image_mode=False,
+            max_num_faces=1,
+            refine_landmarks=True,
+            min_detection_confidence=cfg.min_detection_confidence,
+            min_tracking_confidence=cfg.min_tracking_confidence,
+        ) as face_mesh:
+            while True:
+                ok, frame = cap.read()
+                if not ok or frame is None:
+                    pointer.safe_release()
+                    print(&quot;[error] Camera frame lost — stopping pointer actions.&quot;)
+                    break
+
+                if cfg.mirror:
+                    frame = cv2.flip(frame, 1)
+
+                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                rgb.flags.writeable = False
+                hand_results = hands.process(rgb)
+                face_results = face_mesh.process(rgb)
+                rgb.flags.writeable = True
+
+                hand_obs: Optional[HandObservation] = None
+                if hand_results.multi_hand_landmarks and hand_results.multi_handedness:
+                    hand_lms = hand_results.multi_hand_landmarks[0]
+                    hand_info = hand_results.multi_handedness[0].classification[0]
+                    pts = [(lm.x, lm.y, lm.z) for lm in hand_lms.landmark]
+                    hand_obs = HandObservation(
+                        landmarks=pts,
+                        handedness=hand_info.label,
+                        score=float(hand_info.score),
+                    )
+
+                face_obs: Optional[FaceObservation] = None
+                if face_results.multi_face_landmarks:
+                    face_lms = face_results.multi_face_landmarks[0]
+                    fpts = [(lm.x, lm.y, lm.z) for lm in face_lms.landmark]
+                    face_obs = FaceObservation.from_facemesh_landmarks(fpts)
+
+                now = time.monotonic()
+                dt = max(1e-4, now - prev_time)
+                prev_time = now
+                fps = 0.88 * fps + 0.12 * (1.0 / dt)
+
+                out = processor.process(hand_obs, face_obs, now=now)
+                annotated = hud.draw(frame, hand_obs, face_obs, out, fps)
+                cv2.imshow(win_name, annotated)
+
+                key = cv2.waitKey(1) &amp; 0xFF
+                if key in (27, ord(&quot;q&quot;), ord(&quot;Q&quot;)):
+                    break
+                elif key in (ord(&quot; &quot;), ord(&quot;p&quot;), ord(&quot;P&quot;)):
+                    processor.toggle_pause()
+                elif key in (ord(&quot;n&quot;), ord(&quot;N&quot;)):
+                    pitch = face_obs.pitch_ratio if face_obs else None
+                    processor.recenter_head_pitch(pitch)
+                elif key in (ord(&quot;a&quot;), ord(&quot;A&quot;)):
+                    processor.cycle_anchor_mode()
+                elif key in (ord(&quot;d&quot;), ord(&quot;D&quot;)):
+                    processor.toggle_desktop_control()
+                elif key in (ord(&quot;c&quot;), ord(&quot;C&quot;)):
+                    if processor.calibrating:
+                        processor.calibrating = False
+                    else:
+                        processor.start_calibration()
+                elif key in (ord(&quot;m&quot;), ord(&quot;M&quot;)):
+                    cfg.mirror = not cfg.mirror
+                    cfg.save()
+                elif key in (ord(&quot;h&quot;), ord(&quot;H&quot;)):
+                    order = [&quot;Any&quot;, &quot;Right&quot;, &quot;Left&quot;]
+                    cfg.handedness = order[(order.index(cfg.handedness) + 1) % len(order)]
+                    cfg.save()
+                elif key in (ord(&quot;s&quot;), ord(&quot;S&quot;)):
+                    hud.toggle_settings_window()
+                elif key in (ord(&quot;r&quot;), ord(&quot;R&quot;)):
+                    cfg = CursorConfig()
+                    cfg.save()
+                    processor.cfg = cfg
+    finally:
+        pointer.safe_release()
+        cap.release()
+        cv2.destroyAllWindows()
+        if global_listener is not None:
+            global_listener.stop()
+
+    return 0
+
+
+if __name__ == &quot;__main__&quot;:
+    sys.exit(main())</textarea>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    (function () {
+      // =========================================================================
+      // Configuration & State (Upgraded v2.0: Hand Move + Mouth Click + Head Scroll + Pinch Drag)
+      // =========================================================================
+      const DEFAULTS = {
+        mirror: true,
+        handedness: 'Any',
+        anchorMode: 'blend', // 'blend' (70% knuckle + 30% tip) | 'knuckle' | 'tip'
+        roiLeft: 0.18,
+        roiRight: 0.82,
+        roiTop: 0.18,
+        roiBottom: 0.82,
+        baseSmoothing: 0.18,
+        maxSmoothing: 0.78,
+        cursorSpeed: 1.15,
+        precisionCurve: 1.35, // > 1.0 dampens micro-tremors around center!
+        mouthEnter: 0.26,
+        mouthExit: 0.16,
+        mouthDebounceMs: 45,
+        clickCooldownMs: 320,
+        pinchEnter: 0.26,
+        pinchExit: 0.38,
+        dragHoldDelayMs: 180,
+        headDeadzone: 0.035,
+        headScrollSpeed: 32
+      };
+
+      const cfg = Object.assign({}, DEFAULTS);
+
+      const state = {
+        source: 'sim', // 'sim' | 'webcam'
+        paused: false,
+        calibrating: false,
+        calibStep: 0,
+        calibPoints: [],
+        countdownEnd: 0,
+
+        // Simulated inputs
+        simHandX: 0.5,
+        simHandY: 0.5,
+        simPose: 'move',
+        simPinchRatio: 0.48,
+        simMouthMar: 0.08,
+        simHeadPitch: 0.0,
+
+        // Observed Hand & Face
+        handDetected: true,
+        handednessLabel: 'Right',
+        landmarks: [],
+
+        faceDetected: true,
+        noseXY: { x: 0.5, y: 0.42 },
+        mouthXY: { x: 0.5, y: 0.55 },
+        rawHeadPitch: 0.0,
+        neutralHeadPitch: 0.0,
+        hasNeutralPitch: true,
+        mouthMar: 0.08,
+
+        // Smoothed cursor [0..1]
+        normX: 0.5,
+        normY: 0.5,
+        hasSmooth: false,
+
+        // Decoupled Gesture States
+        mode: 'MOVE',
+        statusDetail: 'Stabilized hand moving cursor',
+        isMouthOpen: false,
+        mouthOpenStartMs: 0,
+        lastClickMs: 0,
+
+        isPinched: false,
+        pinchStartMs: 0,
+        isDragging: false,
+        dragTargetEl: null,
+
+        isScrolling: false,
+        headPitchDelta: 0.0,
+        scrollDelta: 0.0,
+
+        // Sandbox stats
+        clicksCount: 0,
+        dropsCount: 0,
+        cornersHit: new Set(),
+
+        // FPS
+        lastFrameMs: performance.now(),
+        fps: 60
+      };
+
+      // =========================================================================
+      // DOM Elements
+      // =========================================================================
+      const el = {
+        modeBadge: document.getElementById('modeBadge'),
+        modeDot: document.getElementById('modeDot'),
+        modeText: document.getElementById('modeText'),
+        btnSimSource: document.getElementById('btnSimSource'),
+        btnCamSource: document.getElementById('btnCamSource'),
+        btnRecenterHead: document.getElementById('btnRecenterHead'),
+        btnPause: document.getElementById('btnPause'),
+        pauseBtnLabel: document.getElementById('pauseBtnLabel'),
+        btnCalibrate: document.getElementById('btnCalibrate'),
+        btnDownloadPyTop: document.getElementById('btnDownloadPyTop'),
+        btnDownloadPyGuide: document.getElementById('btnDownloadPyGuide'),
+        btnDownloadLauncher: document.getElementById('btnDownloadLauncher'),
+        btnCopyPythonCode: document.getElementById('btnCopyPythonCode'),
+        pythonCodeTextarea: document.getElementById('pythonCodeTextarea'),
+        tabStudioBtn: document.getElementById('tabStudioBtn'),
+        tabGuideBtn: document.getElementById('tabGuideBtn'),
+        btnBackToStudio: document.getElementById('btnBackToStudio'),
+        studioView: document.getElementById('studioView'),
+        guideView: document.getElementById('guideView'),
+
+        toastBanner: document.getElementById('toastBanner'),
+        toastText: document.getElementById('toastText'),
+        btnCloseToast: document.getElementById('btnCloseToast'),
+
+        webcamVideo: document.getElementById('webcamVideo'),
+        cameraCanvas: document.getElementById('cameraCanvas'),
+        fpsCounter: document.getElementById('fpsCounter'),
+        handDetectedBadge: document.getElementById('handDetectedBadge'),
+        calibBanner: document.getElementById('calibBanner'),
+        calibStepText: document.getElementById('calibStepText'),
+        btnCancelCalib: document.getElementById('btnCancelCalib'),
+        countdownOverlay: document.getElementById('countdownOverlay'),
+        countdownNumber: document.getElementById('countdownNumber'),
+
+        poseMoveBtn: document.getElementById('poseMoveBtn'),
+        poseClickBtn: document.getElementById('poseClickBtn'),
+        poseDragBtn: document.getElementById('poseDragBtn'),
+        poseScrollBtn: document.getElementById('poseScrollBtn'),
+        poseLostBtn: document.getElementById('poseLostBtn'),
+
+        simHeadSlider: document.getElementById('simHeadSlider'),
+        simHeadVal: document.getElementById('simHeadVal'),
+        simMouthSlider: document.getElementById('simMouthSlider'),
+        simMouthVal: document.getElementById('simMouthVal'),
+        simPinchSlider: document.getElementById('simPinchSlider'),
+        simPinchVal: document.getElementById('simPinchVal'),
+
+        statusDetailText: document.getElementById('statusDetailText'),
+        telMouthRatio: document.getElementById('telMouthRatio'),
+        telMouthEnter: document.getElementById('telMouthEnter'),
+        telMouthExit: document.getElementById('telMouthExit'),
+        barMouthEnterMarker: document.getElementById('barMouthEnterMarker'),
+        barMouthFill: document.getElementById('barMouthFill'),
+
+        telPinchRatio: document.getElementById('telPinchRatio'),
+        telEnterThresh: document.getElementById('telEnterThresh'),
+        telExitThresh: document.getElementById('telExitThresh'),
+        barEnterMarker: document.getElementById('barEnterMarker'),
+        barExitMarker: document.getElementById('barExitMarker'),
+        barPinchFill: document.getElementById('barPinchFill'),
+
+        telCursorPos: document.getElementById('telCursorPos'),
+        telDragTimer: document.getElementById('telDragTimer'),
+        telScrollDelta: document.getElementById('telScrollDelta'),
+        telCooldown: document.getElementById('telCooldown'),
+
+        cfgSmoothing: document.getElementById('cfgSmoothing'),
+        valSmoothing: document.getElementById('valSmoothing'),
+        cfgSpeed: document.getElementById('cfgSpeed'),
+        valSpeed: document.getElementById('valSpeed'),
+        cfgCurve: document.getElementById('cfgCurve'),
+        valCurve: document.getElementById('valCurve'),
+        cfgMouthEnter: document.getElementById('cfgMouthEnter'),
+        valMouthEnter: document.getElementById('valMouthEnter'),
+        cfgPinchEnter: document.getElementById('cfgPinchEnter'),
+        valPinchEnter: document.getElementById('valPinchEnter'),
+        cfgScrollSpeed: document.getElementById('cfgScrollSpeed'),
+        valScrollSpeed: document.getElementById('valScrollSpeed'),
+        cfgAnchorMode: document.getElementById('cfgAnchorMode'),
+        cfgMargin: document.getElementById('cfgMargin'),
+        valMargin: document.getElementById('valMargin'),
+        cfgHandedness: document.getElementById('cfgHandedness'),
+        cfgMirror: document.getElementById('cfgMirror'),
+        btnCountdownTest: document.getElementById('btnCountdownTest'),
+        btnResetSettings: document.getElementById('btnResetSettings'),
+
+        desktopSurface: document.getElementById('desktopSurface'),
+        virtualCursor: document.getElementById('virtualCursor'),
+        cursorRing: document.getElementById('cursorRing'),
+        cursorDot: document.getElementById('cursorDot'),
+        cursorFloatingTag: document.getElementById('cursorFloatingTag'),
+        statClicks: document.getElementById('statClicks'),
+        statDrops: document.getElementById('statDrops'),
+        statCorners: document.getElementById('statCorners'),
+        btnResetPlayground: document.getElementById('btnResetPlayground'),
+        dropZoneBox: document.getElementById('dropZoneBox'),
+        dragStatusLabel: document.getElementById('dragStatusLabel'),
+        scrollablePane: document.getElementById('scrollablePane'),
+        scrollOffsetLabel: document.getElementById('scrollOffsetLabel'),
+        btnSimTiltUp: document.getElementById('btnSimTiltUp'),
+        btnSimTiltNeutral: document.getElementById('btnSimTiltNeutral'),
+        btnSimTiltDown: document.getElementById('btnSimTiltDown'),
+        eventLogText: document.getElementById('eventLogText')
+      };
+
+      const ctx = el.cameraCanvas.getContext('2d');
+
+      function showToast(msg) {
+        el.toastText.textContent = msg;
+        el.toastBanner.classList.remove('hidden');
+      }
+
+      function logEvent(msg) {
+        el.eventLogText.textContent = msg;
+      }
+
+      // =========================================================================
+      // Synthetic 21-Landmark Hand Builder (Simulator Mode)
+      // =========================================================================
+      const HAND_CONNECTIONS = [
+        [0, 1], [1, 2], [2, 3], [3, 4],
+        [0, 5], [5, 6], [6, 7], [7, 8],
+        [5, 9], [9, 10], [10, 11], [11, 12],
+        [9, 13], [13, 14], [14, 15], [15, 16],
+        [13, 17], [0, 17], [17, 18], [18, 19], [19, 20]
+      ];
+
+      function buildSimulatedLandmarks(ax, ay, pinchRatio) {
+        const palmLen = 0.18;
+        const wx = ax + 0.015;
+        const wy = ay + 0.16;
+        const pts = new Array(21);
+
+        pts[0] = { x: wx, y: wy, z: 0 };
+        const pinchDist = pinchRatio * palmLen;
+        pts[1] = { x: wx - 0.05, y: wy - 0.03, z: 0 };
+        pts[2] = { x: wx - 0.07, y: wy - 0.08, z: 0 };
+        pts[3] = { x: ax - pinchDist * 0.65, y: ay - 0.04 + pinchDist * 0.35, z: 0 };
+        pts[4] = { x: ax - pinchDist * 0.85, y: ay - 0.06 + pinchDist * 0.45, z: 0 };
+
+        // Index MCP knuckle (5) and Index tip (8)
+        pts[5] = { x: ax, y: ay, z: 0 };
+        pts[6] = { x: ax, y: ay - 0.03, z: 0 };
+        pts[7] = { x: ax, y: ay - 0.05, z: 0 };
+        pts[8] = { x: ax, y: ay - 0.07, z: 0 };
+
+        pts[9] = { x: wx, y: wy - palmLen, z: 0 };
+        pts[10] = { x: ax + 0.03, y: ay - 0.01, z: 0 };
+        pts[11] = { x: ax + 0.032, y: ay + 0.02, z: 0 };
+        pts[12] = { x: ax + 0.032, y: ay + 0.05, z: 0 };
+
+        pts[13] = { x: wx + 0.035, y: wy - 0.14, z: 0 };
+        pts[14] = { x: wx + 0.04, y: wy - 0.10, z: 0 };
+        pts[15] = { x: wx + 0.04, y: wy - 0.07, z: 0 };
+        pts[16] = { x: wx + 0.038, y: wy - 0.05, z: 0 };
+
+        pts[17] = { x: wx + 0.065, y: wy - 0.12, z: 0 };
+        pts[18] = { x: wx + 0.068, y: wy - 0.09, z: 0 };
+        pts[19] = { x: wx + 0.066, y: wy - 0.065, z: 0 };
+        pts[20] = { x: wx + 0.062, y: wy - 0.045, z: 0 };
+
+        return pts;
+      }
+
+      function computePinchRatio(lm) {
+        const dx = lm[8].x - lm[4].x;
+        const dy = lm[8].y - lm[4].y;
+        const px = lm[9].x - lm[0].x;
+        const py = lm[9].y - lm[0].y;
+        const palm = Math.max(0.04, Math.hypot(px, py));
+        return Math.hypot(dx, dy) / palm;
+      }
+
+      function getHandAnchor(lm) {
+        if (cfg.anchorMode === 'knuckle') {
+          return { x: lm[5].x, y: lm[5].y };
+        }
+        if (cfg.anchorMode === 'tip') {
+          return { x: lm[8].x, y: lm[8].y };
+        }
+        return {
+          x: 0.70 * lm[5].x + 0.30 * lm[8].x,
+          y: 0.70 * lm[5].y + 0.30 * lm[8].y
+        };
+      }
+
+      // =========================================================================
+      // Stabilized Mapping + Fine-Aim Power Curve (exp >= 1.0) + 1-Euro Smoothing
+      // =========================================================================
+      function mapAndSmooth(rawX, rawY) {
+        const wRoi = Math.max(0.10, cfg.roiRight - cfg.roiLeft);
+        const hRoi = Math.max(0.10, cfg.roiBottom - cfg.roiTop);
+
+        const nx = (rawX - cfg.roiLeft) / wRoi;
+        const ny = (rawY - cfg.roiTop) / hRoi;
+
+        const cx = (nx - 0.5) * 2.0;
+        const cy = (ny - 0.5) * 2.0;
+
+        // Exponent >= 1.0 makes small movements near the target gentle & steady!
+        const exp = Math.max(1.0, cfg.precisionCurve);
+        const curvedX = Math.sign(cx) * Math.pow(Math.abs(cx), exp);
+        const curvedY = Math.sign(cy) * Math.pow(Math.abs(cy), exp);
+
+        const targetX = Math.max(0, Math.min(1, 0.5 + (curvedX * cfg.cursorSpeed) / 2.0));
+        const targetY = Math.max(0, Math.min(1, 0.5 + (curvedY * cfg.cursorSpeed) / 2.0));
+
+        if (!state.hasSmooth) {
+          state.normX = targetX;
+          state.normY = targetY;
+          state.hasSmooth = true;
+        } else {
+          const dx = targetX - state.normX;
+          const dy = targetY - state.normY;
+          const dist = Math.hypot(dx, dy);
+          if (dist > 0.0012) {
+            const velNorm = Math.min(1.0, dist / 0.075);
+            const alpha = cfg.baseSmoothing + velNorm * (cfg.maxSmoothing - cfg.baseSmoothing);
+            state.normX += dx * alpha;
+            state.normY += dy * alpha;
+          }
+        }
+      }
+
+      // =========================================================================
+      // Virtual Desktop Interactions
+      // =========================================================================
+      function getVirtualCursorClientPoint() {
+        const rect = el.desktopSurface.getBoundingClientRect();
+        return {
+          x: rect.left + state.normX * rect.width,
+          y: rect.top + state.normY * rect.height
+        };
+      }
+
+      function checkCornerTargets() {
+        const corners = document.querySelectorAll('.corner-target');
+        const pt = getVirtualCursorClientPoint();
+        corners.forEach((cornerEl) => {
+          const r = cornerEl.getBoundingClientRect();
+          if (pt.x >= r.left && pt.x <= r.right && pt.y >= r.top && pt.y <= r.bottom) {
+            const id = cornerEl.getAttribute('data-corner');
+            if (!state.cornersHit.has(id)) {
+              state.cornersHit.add(id);
+              cornerEl.classList.add('bg-emerald-500/30', 'border-emerald-400', 'text-emerald-200');
+              el.statCorners.textContent = state.cornersHit.size + '/4';
+              logEvent('Corner reached: ' + id + ' (' + state.cornersHit.size + '/4)');
+            }
+          }
+        });
+      }
+
+      function triggerVirtualClick() {
+        const pt = getVirtualCursorClientPoint();
+        const targets = document.querySelectorAll('.v-click-target');
+        let hitAny = false;
+        targets.forEach((btn) => {
+          const r = btn.getBoundingClientRect();
+          if (pt.x >= r.left && pt.x <= r.right && pt.y >= r.top && pt.y <= r.bottom) {
+            hitAny = true;
+            state.clicksCount += 1;
+            el.statClicks.textContent = String(state.clicksCount);
+            const countSpan = btn.querySelector('.v-count');
+            const curr = parseInt(countSpan.textContent, 10) || 0;
+            countSpan.textContent = (curr + 1) + ' hits';
+            btn.classList.add('ring-2', 'ring-emerald-400', 'bg-emerald-950/60');
+            setTimeout(() => {
+              btn.classList.remove('ring-2', 'ring-emerald-400', 'bg-emerald-950/60');
+            }, 240);
+            logEvent('Mouth-Open Click hit "' + btn.firstElementChild.textContent.trim() + '"!');
+          }
+        });
+        if (!hitAny) {
+          state.clicksCount += 1;
+          el.statClicks.textContent = String(state.clicksCount);
+          logEvent('Mouth-Open Click triggered at (' + Math.round(state.normX * 1440) + ', ' + Math.round(state.normY * 900) + ')');
+        }
+      }
+
+      function startVirtualDrag() {
+        const pt = getVirtualCursorClientPoint();
+        const cards = document.querySelectorAll('.draggable-card');
+        for (const card of cards) {
+          const r = card.getBoundingClientRect();
+          if (pt.x >= r.left - 16 && pt.x <= r.right + 16 && pt.y >= r.top - 16 && pt.y <= r.bottom + 16) {
+            state.dragTargetEl = card;
+            card.classList.add('ring-2', 'ring-amber-400', 'scale-105', 'z-10');
+            el.dragStatusLabel.textContent = 'Dragging ' + card.innerText.trim();
+            logEvent('Pinch Drag started on ' + card.innerText.trim());
+            break;
+          }
+        }
+      }
+
+      function updateVirtualDrag() {
+        if (!state.dragTargetEl) return;
+        const card = state.dragTargetEl;
+        const parentRect = card.parentElement.getBoundingClientRect();
+        const pt = getVirtualCursorClientPoint();
+        const localX = Math.max(8, Math.min(parentRect.width - 96, pt.x - parentRect.left - 45));
+        const localY = Math.max(36, Math.min(parentRect.height - 38, pt.y - parentRect.top - 18));
+        card.style.left = localX + 'px';
+        card.style.top = localY + 'px';
+      }
+
+      function releaseVirtualDrag(reason) {
+        if (state.dragTargetEl) {
+          const card = state.dragTargetEl;
+          card.classList.remove('ring-2', 'ring-amber-400', 'scale-105', 'z-10');
+          const cardRect = card.getBoundingClientRect();
+          const dropRect = el.dropZoneBox.getBoundingClientRect();
+          const cx = (cardRect.left + cardRect.right) / 2;
+          const cy = (cardRect.top + cardRect.bottom) / 2;
+          if (cx >= dropRect.left && cx <= dropRect.right && cy >= dropRect.top && cy <= dropRect.bottom) {
+            state.dropsCount += 1;
+            el.statDrops.textContent = String(state.dropsCount);
+            el.dropZoneBox.classList.add('bg-emerald-950/40', 'border-emerald-400');
+            setTimeout(() => {
+              el.dropZoneBox.classList.remove('bg-emerald-950/40', 'border-emerald-400');
+            }, 350);
+            logEvent('Dropped ' + card.innerText.trim() + ' into Drop Folder!');
+          } else {
+            logEvent('Drag released (' + reason + ')');
+          }
+          state.dragTargetEl = null;
+        }
+        el.dragStatusLabel.textContent = 'Idle';
+      }
+
+      // =========================================================================
+      // 4-Corner Calibration Wizard
+      // =========================================================================
+      const CALIB_LABELS = [
+        'Point at TOP-LEFT comfortable corner & open mouth / click (1/4)',
+        'Point at TOP-RIGHT comfortable corner & open mouth / click (2/4)',
+        'Point at BOTTOM-RIGHT comfortable corner & open mouth / click (3/4)',
+        'Point at BOTTOM-LEFT comfortable corner & open mouth / click (4/4)'
+      ];
+
+      function startCalibration() {
+        state.calibrating = true;
+        state.calibStep = 0;
+        state.calibPoints = [];
+        el.calibBanner.classList.remove('hidden');
+        el.calibStepText.textContent = CALIB_LABELS[0];
+        logEvent('Calibration started — capture 4 comfortable hand corners.');
+      }
+
+      function recordCalibrationPoint(rawX, rawY) {
+        if (!state.calibrating) return;
+        state.calibPoints.push({ x: rawX, y: rawY });
+        state.calibStep += 1;
+        if (state.calibStep >= 4) {
+          const xs = state.calibPoints.map((p) => p.x);
+          const ys = state.calibPoints.map((p) => p.y);
+          cfg.roiLeft = Math.max(0.04, Math.min(0.40, Math.min.apply(null, xs)));
+          cfg.roiRight = Math.min(0.96, Math.max(0.60, Math.max.apply(null, xs)));
+          cfg.roiTop = Math.max(0.04, Math.min(0.40, Math.min.apply(null, ys)));
+          cfg.roiBottom = Math.min(0.96, Math.max(0.60, Math.max.apply(null, ys)));
+          state.calibrating = false;
+          el.calibBanner.classList.add('hidden');
+          showToast('4-Point Calibration applied! Active tracking box fitted to your comfortable reach.');
+        } else {
+          el.calibStepText.textContent = CALIB_LABELS[state.calibStep];
+        }
+      }
+
+      // =========================================================================
+      // Main Per-Frame State Machine (Hand Move + Mouth Click + Head Scroll + Pinch Drag)
+      // =========================================================================
+      function stepGestureEngine(nowMs) {
+        if (state.source === 'sim') {
+          state.handDetected = state.simPose !== 'lost';
+          state.faceDetected = true;
+          state.mouthMar = state.simMouthMar;
+          state.rawHeadPitch = state.simHeadPitch;
+          state.neutralHeadPitch = 0.0;
+          state.noseXY = { x: 0.5, y: 0.40 - state.simHeadPitch * 0.8 };
+          state.mouthXY = { x: 0.5, y: 0.53 - state.simHeadPitch * 0.8 };
+          if (state.handDetected) {
+            state.landmarks = buildSimulatedLandmarks(
+              state.simHandX,
+              state.simHandY,
+              state.simPinchRatio
+            );
+          } else {
+            state.landmarks = [];
+          }
+        }
+
+        // 1. Check Pause
+        if (state.paused) {
+          if (state.isDragging) {
+            state.isDragging = false;
+            releaseVirtualDrag('Paused');
+          }
+          state.isPinched = false;
+          state.isMouthOpen = false;
+          state.isScrolling = false;
+          state.mode = 'PAUSED';
+          state.statusDetail = 'Tracking paused — safe to use physical mouse/keyboard';
+          return;
+        }
+
+        // 2. Check Startup Countdown
+        if (state.countdownEnd > nowMs) {
+          const rem = ((state.countdownEnd - nowMs) / 1000).toFixed(1);
+          el.countdownOverlay.classList.remove('hidden');
+          el.countdownNumber.textContent = rem + 's';
+          state.mode = 'COUNTDOWN';
+          state.statusDetail = 'Control begins in ' + rem + 's...';
+          return;
+        } else {
+          el.countdownOverlay.classList.add('hidden');
+        }
+
+        // 3. Evaluate Face: Mouth-Open Click & Head-Pitch Scroll
+        let clickedThisFrame = false;
+        state.scrollDelta = 0;
+        state.isScrolling = false;
+
+        if (state.faceDetected) {
+          if (!state.hasNeutralPitch) {
+            state.neutralHeadPitch = state.rawHeadPitch;
+            state.hasNeutralPitch = true;
+          }
+          state.headPitchDelta = state.rawHeadPitch - state.neutralHeadPitch;
+
+          // Mouth-Open Click (Hysteresis + Debounce)
+          if (!state.isDragging) {
+            if (!state.isMouthOpen) {
+              if (state.mouthMar >= cfg.mouthEnter) {
+                if (state.mouthOpenStartMs === 0) {
+                  state.mouthOpenStartMs = nowMs;
+                } else if (nowMs - state.mouthOpenStartMs >= cfg.mouthDebounceMs) {
+                  state.isMouthOpen = true;
+                  if (nowMs - state.lastClickMs >= cfg.clickCooldownMs) {
+                    state.lastClickMs = nowMs;
+                    clickedThisFrame = true;
+                    if (state.calibrating && state.landmarks.length === 21) {
+                      const anchor = getHandAnchor(state.landmarks);
+                      recordCalibrationPoint(anchor.x, anchor.y);
+                    } else {
+                      triggerVirtualClick();
+                    }
+                  }
+                }
+              } else {
+                state.mouthOpenStartMs = 0;
+              }
+            } else {
+              if (state.mouthMar <= cfg.mouthExit) {
+                state.isMouthOpen = false;
+                state.mouthOpenStartMs = 0;
+              }
+            }
+          }
+
+          // Head-Pitch Up/Down Scroll (when not dragging)
+          if (!state.isDragging && !state.calibrating) {
+            if (Math.abs(state.headPitchDelta) > cfg.headDeadzone) {
+              state.isScrolling = true;
+              const eff = Math.sign(state.headPitchDelta) * (Math.abs(state.headPitchDelta) - cfg.headDeadzone);
+              state.scrollDelta = eff * cfg.headScrollSpeed * 1.25;
+              el.scrollablePane.scrollTop -= state.scrollDelta;
+              el.scrollOffsetLabel.textContent = 'top: ' + Math.round(el.scrollablePane.scrollTop) + 'px';
+            }
+          }
+        }
+
+        // 4. Evaluate Hand: Stabilized Cursor Move & Dedicated Pinch-Hold Drag
+        if (!state.handDetected || state.landmarks.length < 21) {
+          if (state.isDragging) {
+            state.isDragging = false;
+            releaseVirtualDrag('Hand lost');
+          }
+          state.isPinched = false;
+          if (clickedThisFrame || state.isMouthOpen) {
+            state.mode = 'CLICK';
+            state.statusDetail = 'Mouth Click triggered!';
+          } else if (state.isScrolling) {
+            state.mode = 'SCROLL';
+            state.statusDetail = 'Head Scroll ' + (state.scrollDelta > 0 ? 'UP' : 'DOWN');
+          } else {
+            state.mode = 'NO HAND';
+            state.statusDetail = 'Hand not detected — cursor movement stopped';
+          }
+          return;
+        }
+
+        const lm = state.landmarks;
+        const anchor = getHandAnchor(lm);
+        const pinchRatio = computePinchRatio(lm);
+
+        mapAndSmooth(anchor.x, anchor.y);
+        checkCornerTargets();
+
+        if (state.calibrating) {
+          state.mode = 'CALIBRATING';
+          state.statusDetail = CALIB_LABELS[Math.min(3, state.calibStep)];
+          return;
+        }
+
+        // Dedicated Pinch-and-Hold Drag (never triggers stray click)
+        if (!state.isPinched) {
+          if (pinchRatio < cfg.pinchEnter) {
+            state.isPinched = true;
+            state.pinchStartMs = nowMs;
+          }
+        } else {
+          if (pinchRatio > cfg.pinchExit) {
+            state.isPinched = false;
+            if (state.isDragging) {
+              state.isDragging = false;
+              releaseVirtualDrag('Drop');
+              state.mode = 'MOVE';
+              state.statusDetail = 'Drag released (Drop)';
+              return;
+            }
+          } else {
+            if (!state.isDragging && (nowMs - state.pinchStartMs) >= cfg.dragHoldDelayMs) {
+              state.isDragging = true;
+              startVirtualDrag();
+            }
+          }
+        }
+
+        if (state.isDragging) {
+          updateVirtualDrag();
+          state.mode = 'DRAG';
+          state.statusDetail = 'Pinch-Dragging — release pinch to drop';
+          return;
+        }
+
+        if (clickedThisFrame || state.isMouthOpen) {
+          state.mode = 'CLICK';
+          state.statusDetail = 'Mouth-Open Click triggered!';
+          return;
+        }
+
+        if (state.isScrolling) {
+          const dir = state.scrollDelta > 0 ? 'UP ↑' : 'DOWN ↓';
+          state.mode = 'SCROLL';
+          state.statusDetail = 'Head Tilt Scrolling ' + dir + ' (' + state.scrollDelta.toFixed(1) + ' px/f)';
+          return;
+        }
+
+        state.mode = 'MOVE';
+        state.statusDetail = state.isPinched
+          ? 'Holding pinch — keep holding to start Drag'
+          : 'Cursor steady (' + cfg.anchorMode + ') • Open mouth to Click • Tilt head to Scroll';
+      }
+
+      // =========================================================================
+      // Render Camera Preview, Face Head/Mouth Overlay & Hand Skeleton
+      // =========================================================================
+      const MODE_STYLES = {
+        'MOVE': { hex: '#38bdf8', badge: 'bg-sky-500/20 text-sky-300 border-sky-500/40', dot: 'bg-sky-400' },
+        'CLICK': { hex: '#34d399', badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40', dot: 'bg-emerald-400' },
+        'DRAG': { hex: '#fb923c', badge: 'bg-orange-500/20 text-orange-300 border-orange-500/40', dot: 'bg-orange-400' },
+        'SCROLL': { hex: '#c084fc', badge: 'bg-purple-500/20 text-purple-300 border-purple-500/40', dot: 'bg-purple-400' },
+        'PAUSED': { hex: '#f87171', badge: 'bg-rose-500/20 text-rose-300 border-rose-500/40', dot: 'bg-rose-400' },
+        'NO HAND': { hex: '#94a3b8', badge: 'bg-slate-700/50 text-slate-300 border-slate-600', dot: 'bg-slate-400' },
+        'COUNTDOWN': { hex: '#fbbf24', badge: 'bg-amber-500/20 text-amber-300 border-amber-500/40', dot: 'bg-amber-400' },
+        'CALIBRATING': { hex: '#facc15', badge: 'bg-yellow-500/20 text-yellow-200 border-yellow-500/40', dot: 'bg-yellow-400' }
+      };
+
+      function renderStudio(nowMs) {
+        const w = el.cameraCanvas.width;
+        const h = el.cameraCanvas.height;
+        const style = MODE_STYLES[state.mode] || MODE_STYLES['MOVE'];
+
+        ctx.clearRect(0, 0, w, h);
+
+        // Background
+        if (state.source === 'webcam' && el.webcamVideo.readyState >= 2) {
+          ctx.save();
+          if (cfg.mirror) {
+            ctx.translate(w, 0);
+            ctx.scale(-1, 1);
+          }
+          ctx.drawImage(el.webcamVideo, 0, 0, w, h);
+          ctx.restore();
+          ctx.fillStyle = 'rgba(11, 15, 23, 0.35)';
+          ctx.fillRect(0, 0, w, h);
+        } else {
+          ctx.fillStyle = '#090d16';
+          ctx.fillRect(0, 0, w, h);
+          ctx.strokeStyle = 'rgba(51, 65, 85, 0.25)';
+          ctx.lineWidth = 1;
+          for (let gx = 40; gx < w; gx += 40) {
+            ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, h); ctx.stroke();
+          }
+          for (let gy = 40; gy < h; gy += 40) {
+            ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke();
+          }
+        }
+
+        // 1. Draw Active Hand ROI Box
+        const rx = cfg.roiLeft * w;
+        const ry = cfg.roiTop * h;
+        const rw = (cfg.roiRight - cfg.roiLeft) * w;
+        const rh = (cfg.roiBottom - cfg.roiTop) * h;
+
+        ctx.save();
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.55)';
+        ctx.setLineDash([6, 4]);
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(rx, ry, rw, rh);
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(148, 163, 184, 0.85)';
+        ctx.font = '11px Inter, sans-serif';
+        ctx.fillText('Active Hand Zone (Anchor: ' + cfg.anchorMode + ')', rx + 8, Math.max(16, ry - 6));
+        ctx.restore();
+
+        // 2. Draw Head Pitch Scroll Band & Mouth Click Indicator
+        if (state.faceDetected) {
+          const nxPx = state.noseXY.x * w;
+          const nyPx = state.noseXY.y * h;
+          const neutralY = nyPx + state.headPitchDelta * h * 0.65;
+          const dzPx = cfg.headDeadzone * h * 0.65;
+
+          ctx.save();
+          // Neutral head pitch comfort band
+          ctx.fillStyle = state.isScrolling ? 'rgba(192, 132, 252, 0.18)' : 'rgba(148, 163, 184, 0.10)';
+          ctx.fillRect(nxPx - 52, neutralY - dzPx, 104, dzPx * 2);
+          ctx.strokeStyle = state.isScrolling ? '#c084fc' : 'rgba(192, 132, 252, 0.55)';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(nxPx - 52, neutralY - dzPx, 104, dzPx * 2);
+
+          // Nose dot
+          ctx.beginPath();
+          ctx.arc(nxPx, nyPx, 6, 0, Math.PI * 2);
+          ctx.fillStyle = state.isScrolling ? '#d8b4fe' : '#f8fafc';
+          ctx.fill();
+          ctx.font = '10px JetBrains Mono, monospace';
+          ctx.fillStyle = '#e9d5ff';
+          ctx.fillText('HEAD SCROLL BAND', nxPx - 48, neutralY - dzPx - 5);
+
+          // Mouth Open Click indicator ring
+          const mxPx = state.mouthXY.x * w;
+          const myPx = state.mouthXY.y * h;
+          const mouthOpenH = Math.max(4, state.mouthMar * 42);
+          ctx.beginPath();
+          ctx.ellipse(mxPx, myPx, 18, mouthOpenH, 0, 0, Math.PI * 2);
+          ctx.strokeStyle = state.isMouthOpen ? '#34d399' : 'rgba(52, 211, 153, 0.65)';
+          ctx.lineWidth = state.isMouthOpen ? 3 : 1.8;
+          ctx.stroke();
+          if (state.isMouthOpen) {
+            ctx.fillStyle = 'rgba(52, 211, 153, 0.28)';
+            ctx.fill();
+          }
+          ctx.fillStyle = '#6ee7b7';
+          ctx.fillText(state.isMouthOpen ? 'MOUTH CLICK!' : 'MOUTH', mxPx - 20, myPx + mouthOpenH + 12);
+          ctx.restore();
+        }
+
+        // 3. Draw Hand Skeleton & Stabilized Anchor Point
+        if (state.handDetected && state.landmarks.length === 21) {
+          const lm = state.landmarks;
+          ctx.save();
+          ctx.strokeStyle = 'rgba(148, 163, 184, 0.68)';
+          ctx.lineWidth = 2;
+          HAND_CONNECTIONS.forEach(([i, j]) => {
+            ctx.beginPath();
+            ctx.moveTo(lm[i].x * w, lm[i].y * h);
+            ctx.lineTo(lm[j].x * w, lm[j].y * h);
+            ctx.stroke();
+          });
+
+          // Pinch tether line (Thumb 4 to Index 8) for Drag
+          if (state.isPinched || state.isDragging) {
+            ctx.strokeStyle = '#fb923c';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(lm[4].x * w, lm[4].y * h);
+            ctx.lineTo(lm[8].x * w, lm[8].y * h);
+            ctx.stroke();
+          }
+
+          lm.forEach((pt, idx) => {
+            ctx.beginPath();
+            ctx.arc(pt.x * w, pt.y * h, idx === 5 || idx === 8 || idx === 4 ? 4.5 : 3, 0, Math.PI * 2);
+            ctx.fillStyle = idx === 5 ? '#38bdf8' : '#f8fafc';
+            ctx.fill();
+          });
+
+          // Highlight Stabilized Cursor Anchor
+          const anchor = getHandAnchor(lm);
+          const axPx = anchor.x * w;
+          const ayPx = anchor.y * h;
+          ctx.beginPath();
+          ctx.arc(axPx, ayPx, 12, 0, Math.PI * 2);
+          ctx.strokeStyle = style.hex;
+          ctx.lineWidth = 2.5;
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(axPx, ayPx, 4, 0, Math.PI * 2);
+          ctx.fillStyle = style.hex;
+          ctx.fill();
+          ctx.restore();
+        }
+
+        // Update Top Mode Badge & Virtual Cursor
+        el.modeBadge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-lg font-semibold text-xs tracking-wider uppercase border ' + style.badge;
+        el.modeDot.className = 'w-2 h-2 rounded-full ' + style.dot;
+        el.modeText.textContent = state.mode;
+        el.statusDetailText.textContent = state.statusDetail;
+
+        el.virtualCursor.style.left = (state.normX * 100) + '%';
+        el.virtualCursor.style.top = (state.normY * 100) + '%';
+        el.cursorRing.style.borderColor = style.hex;
+        el.cursorFloatingTag.textContent = state.mode;
+        el.cursorFloatingTag.style.color = style.hex;
+
+        // Telemetry bars
+        el.telMouthRatio.textContent = state.mouthMar.toFixed(2);
+        el.telMouthEnter.textContent = cfg.mouthEnter.toFixed(2);
+        el.telMouthExit.textContent = cfg.mouthExit.toFixed(2);
+        const maxMouth = 0.55;
+        el.barMouthEnterMarker.style.left = Math.min(100, (cfg.mouthEnter / maxMouth) * 100) + '%';
+        el.barMouthFill.style.width = Math.min(100, (state.mouthMar / maxMouth) * 100) + '%';
+
+        const pinchRatio = state.handDetected && state.landmarks.length === 21
+          ? computePinchRatio(state.landmarks)
+          : 1.0;
+        el.telPinchRatio.textContent = pinchRatio.toFixed(2);
+        el.telEnterThresh.textContent = cfg.pinchEnter.toFixed(2);
+        el.telExitThresh.textContent = cfg.pinchExit.toFixed(2);
+        const maxPinch = 0.65;
+        el.barEnterMarker.style.left = Math.min(100, (cfg.pinchEnter / maxPinch) * 100) + '%';
+        el.barExitMarker.style.left = Math.min(100, (cfg.pinchExit / maxPinch) * 100) + '%';
+        el.barPinchFill.style.width = Math.min(100, (pinchRatio / maxPinch) * 100) + '%';
+
+        const sx = Math.round(state.normX * 1440);
+        const sy = Math.round(state.normY * 900);
+        el.telCursorPos.textContent = '(' + sx + ', ' + sy + ')';
+        el.telDragTimer.textContent = (state.headPitchDelta >= 0 ? '+' : '') + state.headPitchDelta.toFixed(3);
+        el.telScrollDelta.textContent = state.scrollDelta.toFixed(1) + ' px/f';
+
+        const cdRem = Math.max(0, cfg.clickCooldownMs - (nowMs - state.lastClickMs));
+        el.telCooldown.textContent = cdRem > 0 ? Math.round(cdRem) + ' ms' : 'Ready';
+      }
+
+      // =========================================================================
+      // Simulator Pose Presets & Direct Steering on Both Panels
+      // =========================================================================
+      function setSimPose(pose) {
+        state.simPose = pose;
+        const buttons = [
+          [el.poseMoveBtn, 'move'],
+          [el.poseClickBtn, 'click'],
+          [el.poseDragBtn, 'drag'],
+          [el.poseScrollBtn, 'scroll'],
+          [el.poseLostBtn, 'lost']
+        ];
+        buttons.forEach(([btn, key]) => {
+          if (key === pose) {
+            btn.className = 'pose-btn px-2 py-1.5 rounded-lg text-xs font-medium bg-sky-500/20 text-sky-300 border border-sky-500/40 transition';
+          } else {
+            btn.className = 'pose-btn px-2 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition';
+          }
+        });
+
+        if (pose === 'move') {
+          state.simPinchRatio = 0.48;
+          state.simMouthMar = 0.08;
+          state.simHeadPitch = 0.0;
+          el.simPinchSlider.value = '0.48'; el.simPinchVal.textContent = '0.48';
+          el.simMouthSlider.value = '0.08'; el.simMouthVal.textContent = '0.08';
+          el.simHeadSlider.value = '0.00'; el.simHeadVal.textContent = '0.000';
+        } else if (pose === 'click') {
+          // Simulate Mouth-Open Click (hand stays still!)
+          state.simMouthMar = 0.36;
+          el.simMouthSlider.value = '0.36';
+          el.simMouthVal.textContent = '0.36';
+          setTimeout(() => {
+            state.simMouthMar = 0.08;
+            el.simMouthSlider.value = '0.08';
+            el.simMouthVal.textContent = '0.08';
+            if (state.simPose === 'click') setSimPose('move');
+          }, 140);
+        } else if (pose === 'drag') {
+          state.simPinchRatio = 0.16;
+          el.simPinchSlider.value = '0.16';
+          el.simPinchVal.textContent = '0.16';
+        } else if (pose === 'scroll') {
+          state.simHeadPitch = -0.085;
+          el.simHeadSlider.value = '-0.085';
+          el.simHeadVal.textContent = '-0.085';
+        }
+      }
+
+      // Steer simulated hand from Camera Canvas
+      el.cameraCanvas.addEventListener('mousemove', (e) => {
+        const rect = el.cameraCanvas.getBoundingClientRect();
+        state.simHandX = Math.max(0.02, Math.min(0.98, (e.clientX - rect.left) / rect.width));
+        state.simHandY = Math.max(0.02, Math.min(0.98, (e.clientY - rect.top) / rect.height));
+      });
+
+      // ALSO steer simulated hand when moving mouse directly over the Virtual Desktop!
+      el.desktopSurface.addEventListener('mousemove', (e) => {
+        if (state.source !== 'sim') return;
+        const rect = el.desktopSurface.getBoundingClientRect();
+        const deskNx = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        const deskNy = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+        state.simHandX = cfg.roiLeft + deskNx * (cfg.roiRight - cfg.roiLeft);
+        state.simHandY = cfg.roiTop + deskNy * (cfg.roiBottom - cfg.roiTop);
+      });
+
+      // Left-clicking on cameraCanvas triggers Mouth-Open Click in simulator
+      el.cameraCanvas.addEventListener('mousedown', () => {
+        setSimPose('click');
+      });
+
+      // =========================================================================
+      // Live Webcam MediaPipe Hands + FaceMesh Integration
+      // =========================================================================
+      let mpHandsInstance = null;
+      let mpFaceInstance = null;
+      let webcamActive = false;
+      let busyProcessingWebcam = false;
+
+      async function enableLiveWebcam() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          showToast('Webcam API is blocked in this preview iframe — using Interactive Simulator.');
+          return;
+        }
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: 640, height: 360 }
+          });
+          el.webcamVideo.srcObject = stream;
+          await el.webcamVideo.play();
+
+          if (typeof window.Hands === 'function' && !mpHandsInstance) {
+            mpHandsInstance = new window.Hands({
+              locateFile: (file) => 'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/' + file
+            });
+            mpHandsInstance.setOptions({
+              maxNumHands: 1,
+              modelComplexity: 1,
+              minDetectionConfidence: 0.65,
+              minTrackingConfidence: 0.65
+            });
+            mpHandsInstance.onResults((results) => {
+              if (state.source !== 'webcam') return;
+              if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const raw = results.multiHandLandmarks[0];
+                state.landmarks = raw.map((pt) => ({
+                  x: cfg.mirror ? 1.0 - pt.x : pt.x,
+                  y: pt.y,
+                  z: pt.z
+                }));
+                state.handDetected = true;
+              } else {
+                state.handDetected = false;
+                state.landmarks = [];
+              }
+            });
+          }
+
+          if (typeof window.FaceMesh === 'function' && !mpFaceInstance) {
+            mpFaceInstance = new window.FaceMesh({
+              locateFile: (file) => 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/' + file
+            });
+            mpFaceInstance.setOptions({
+              maxNumFaces: 1,
+              refineLandmarks: false,
+              minDetectionConfidence: 0.6,
+              minTrackingConfidence: 0.6
+            });
+            mpFaceInstance.onResults((results) => {
+              if (state.source !== 'webcam') return;
+              if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+                const flm = results.multiFaceLandmarks[0];
+                state.faceDetected = true;
+                const nx = cfg.mirror ? 1.0 - flm[1].x : flm[1].x;
+                const ny = flm[1].y;
+                state.noseXY = { x: nx, y: ny };
+
+                const eyeMidY = 0.5 * (flm[33].y + flm[263].y);
+                const faceH = Math.max(0.08, Math.abs(flm[152].y - flm[10].y));
+                const rawNoseOffset = (ny - eyeMidY) / faceH;
+                state.rawHeadPitch = 0.36 - rawNoseOffset;
+
+                const lipOpen = Math.hypot(flm[14].x - flm[13].x, flm[14].y - flm[13].y);
+                const mouthW = Math.max(0.03, Math.hypot(flm[308].x - flm[78].x, flm[308].y - flm[78].y));
+                state.mouthMar = lipOpen / mouthW;
+                state.mouthXY = {
+                  x: cfg.mirror ? 1.0 - 0.5 * (flm[13].x + flm[14].x) : 0.5 * (flm[13].x + flm[14].x),
+                  y: 0.5 * (flm[13].y + flm[14].y)
+                };
+              } else {
+                state.faceDetected = false;
+              }
+            });
+          }
+
+          state.source = 'webcam';
+          state.hasNeutralPitch = false;
+          webcamActive = true;
+          el.btnCamSource.className = 'px-2.5 py-1 rounded-md text-xs font-medium bg-sky-600 text-white transition';
+          el.btnSimSource.className = 'px-2.5 py-1 rounded-md text-xs font-medium text-slate-300 hover:text-white transition';
+          showToast('Live webcam active! Move hand to steer, open mouth to click, tilt head up/down to scroll.');
+        } catch (err) {
+          showToast('Camera permission blocked by browser iframe — using Interactive Simulator Mode.');
+          switchToSimulator();
+        }
+      }
+
+      function switchToSimulator() {
+        state.source = 'sim';
+        webcamActive = false;
+        if (el.webcamVideo.srcObject) {
+          el.webcamVideo.srcObject.getTracks().forEach((t) => t.stop());
+          el.webcamVideo.srcObject = null;
+        }
+        el.btnSimSource.className = 'px-2.5 py-1 rounded-md text-xs font-medium bg-sky-600 text-white transition';
+        el.btnCamSource.className = 'px-2.5 py-1 rounded-md text-xs font-medium text-slate-300 hover:text-white transition';
+      }
+
+      // =========================================================================
+      // 1-Click File Download & Copy Helpers for macOS Python App
+      // =========================================================================
+      function triggerFileDownload(filename, content) {
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('Downloaded ' + filename + ' to your Mac Downloads folder!');
+      }
+
+      const LAUNCHER_SCRIPT = [
+        '#!/bin/bash',
+        'cd "$(dirname "$0")"',
+        'echo "=== Setting up Local Hand + Head/Mouth Cursor for macOS ==="',
+        'python3 -m pip install --upgrade opencv-python mediapipe numpy pyobjc-framework-Quartz pynput',
+        'echo "=== Launching hand_cursor_mac.py ==="',
+        'python3 hand_cursor_mac.py',
+        ''
+      ].join('\n');
+
+      el.btnDownloadPyTop.addEventListener('click', () => {
+        triggerFileDownload('hand_cursor_mac.py', el.pythonCodeTextarea.value);
+      });
+      el.btnDownloadPyGuide.addEventListener('click', () => {
+        triggerFileDownload('hand_cursor_mac.py', el.pythonCodeTextarea.value);
+      });
+      el.btnDownloadLauncher.addEventListener('click', () => {
+        triggerFileDownload('run_mac.command', LAUNCHER_SCRIPT);
+      });
+      el.btnCopyPythonCode.addEventListener('click', () => {
+        el.pythonCodeTextarea.select();
+        document.execCommand('copy');
+        showToast('Copied full hand_cursor_mac.py code to clipboard!');
+      });
+
+      // =========================================================================
+      // UI Listeners & Keyboard Shortcuts
+      // =========================================================================
+      el.btnSimSource.addEventListener('click', switchToSimulator);
+      el.btnCamSource.addEventListener('click', enableLiveWebcam);
+
+      el.btnRecenterHead.addEventListener('click', () => {
+        state.neutralHeadPitch = state.rawHeadPitch;
+        state.simHeadPitch = 0.0;
+        el.simHeadSlider.value = '0.00';
+        el.simHeadVal.textContent = '0.000';
+        showToast('Neutral head pitch re-centered!');
+      });
+
+      el.btnPause.addEventListener('click', () => {
+        state.paused = !state.paused;
+        el.pauseBtnLabel.textContent = state.paused ? 'Resume (Space)' : 'Pause (Space)';
+        logEvent(state.paused ? 'Tracking Paused' : 'Tracking Resumed');
+      });
+
+      el.btnCalibrate.addEventListener('click', () => {
+        if (state.calibrating) {
+          state.calibrating = false;
+          el.calibBanner.classList.add('hidden');
+        } else {
+          startCalibration();
+        }
+      });
+
+      el.btnCancelCalib.addEventListener('click', () => {
+        state.calibrating = false;
+        el.calibBanner.classList.add('hidden');
+      });
+
+      el.btnCloseToast.addEventListener('click', () => {
+        el.toastBanner.classList.add('hidden');
+      });
+
+      el.tabStudioBtn.addEventListener('click', () => {
+        el.studioView.classList.remove('hidden');
+        el.guideView.classList.add('hidden');
+        el.tabStudioBtn.className = 'px-2.5 py-1 rounded-md text-xs font-medium bg-slate-700 text-white transition';
+        el.tabGuideBtn.className = 'px-2.5 py-1 rounded-md text-xs font-medium text-slate-300 hover:text-white transition';
+      });
+
+      el.tabGuideBtn.addEventListener('click', () => {
+        el.studioView.classList.add('hidden');
+        el.guideView.classList.remove('hidden');
+        el.tabGuideBtn.className = 'px-2.5 py-1 rounded-md text-xs font-medium bg-slate-700 text-white transition';
+        el.tabStudioBtn.className = 'px-2.5 py-1 rounded-md text-xs font-medium text-slate-300 hover:text-white transition';
+      });
+
+      el.btnBackToStudio.addEventListener('click', () => {
+        el.tabStudioBtn.click();
+      });
+
+      el.poseMoveBtn.addEventListener('click', () => setSimPose('move'));
+      el.poseClickBtn.addEventListener('click', () => setSimPose('click'));
+      el.poseDragBtn.addEventListener('click', () => setSimPose('drag'));
+      el.poseScrollBtn.addEventListener('click', () => setSimPose('scroll'));
+      el.poseLostBtn.addEventListener('click', () => setSimPose('lost'));
+
+      el.btnSimTiltUp.addEventListener('click', () => {
+        state.simHeadPitch = 0.085;
+        el.simHeadSlider.value = '0.085';
+        el.simHeadVal.textContent = '+0.085';
+      });
+      el.btnSimTiltNeutral.addEventListener('click', () => {
+        state.simHeadPitch = 0.0;
+        el.simHeadSlider.value = '0.00';
+        el.simHeadVal.textContent = '0.000';
+      });
+      el.btnSimTiltDown.addEventListener('click', () => {
+        state.simHeadPitch = -0.085;
+        el.simHeadSlider.value = '-0.085';
+        el.simHeadVal.textContent = '-0.085';
+      });
+
+      el.simHeadSlider.addEventListener('input', (e) => {
+        state.simHeadPitch = parseFloat(e.target.value);
+        el.simHeadVal.textContent = (state.simHeadPitch >= 0 ? '+' : '') + state.simHeadPitch.toFixed(3);
+      });
+      el.simMouthSlider.addEventListener('input', (e) => {
+        state.simMouthMar = parseFloat(e.target.value);
+        el.simMouthVal.textContent = state.simMouthMar.toFixed(2);
+      });
+      el.simPinchSlider.addEventListener('input', (e) => {
+        state.simPinchRatio = parseFloat(e.target.value);
+        el.simPinchVal.textContent = state.simPinchRatio.toFixed(2);
+      });
+
+      // Stage F Settings
+      el.cfgSmoothing.addEventListener('input', (e) => {
+        cfg.baseSmoothing = parseFloat(e.target.value);
+        el.valSmoothing.textContent = cfg.baseSmoothing.toFixed(2);
+      });
+      el.cfgSpeed.addEventListener('input', (e) => {
+        cfg.cursorSpeed = parseFloat(e.target.value);
+        el.valSpeed.textContent = cfg.cursorSpeed.toFixed(2) + 'x';
+      });
+      el.cfgCurve.addEventListener('input', (e) => {
+        cfg.precisionCurve = parseFloat(e.target.value);
+        el.valCurve.textContent = cfg.precisionCurve.toFixed(2);
+      });
+      el.cfgMouthEnter.addEventListener('input', (e) => {
+        cfg.mouthEnter = parseFloat(e.target.value);
+        el.valMouthEnter.textContent = cfg.mouthEnter.toFixed(2);
+      });
+      el.cfgPinchEnter.addEventListener('input', (e) => {
+        cfg.pinchEnter = parseFloat(e.target.value);
+        cfg.pinchExit = Math.max(cfg.pinchEnter + 0.08, cfg.pinchExit);
+        el.valPinchEnter.textContent = cfg.pinchEnter.toFixed(2);
+      });
+      el.cfgScrollSpeed.addEventListener('input', (e) => {
+        cfg.headScrollSpeed = parseFloat(e.target.value);
+        el.valScrollSpeed.textContent = String(cfg.headScrollSpeed);
+      });
+      el.cfgAnchorMode.addEventListener('change', (e) => {
+        cfg.anchorMode = e.target.value;
+      });
+      el.cfgMargin.addEventListener('input', (e) => {
+        const m = parseFloat(e.target.value);
+        cfg.roiLeft = m; cfg.roiRight = 1.0 - m;
+        cfg.roiTop = m; cfg.roiBottom = 1.0 - m;
+        el.valMargin.textContent = Math.round(m * 100) + '%';
+      });
+      el.cfgHandedness.addEventListener('change', (e) => {
+        cfg.handedness = e.target.value;
+      });
+      el.cfgMirror.addEventListener('change', (e) => {
+        cfg.mirror = e.target.checked;
+      });
+
+      el.btnCountdownTest.addEventListener('click', () => {
+        state.countdownEnd = performance.now() + 3000;
+      });
+
+      el.btnResetSettings.addEventListener('click', () => {
+        Object.assign(cfg, DEFAULTS);
+        el.cfgSmoothing.value = String(cfg.baseSmoothing);
+        el.valSmoothing.textContent = cfg.baseSmoothing.toFixed(2);
+        el.cfgSpeed.value = String(cfg.cursorSpeed);
+        el.valSpeed.textContent = cfg.cursorSpeed.toFixed(2) + 'x';
+        el.cfgCurve.value = String(cfg.precisionCurve);
+        el.valCurve.textContent = cfg.precisionCurve.toFixed(2);
+        el.cfgMouthEnter.value = String(cfg.mouthEnter);
+        el.valMouthEnter.textContent = cfg.mouthEnter.toFixed(2);
+        el.cfgPinchEnter.value = String(cfg.pinchEnter);
+        el.valPinchEnter.textContent = cfg.pinchEnter.toFixed(2);
+        el.cfgScrollSpeed.value = String(cfg.headScrollSpeed);
+        el.valScrollSpeed.textContent = String(cfg.headScrollSpeed);
+        el.cfgAnchorMode.value = cfg.anchorMode;
+        el.cfgMirror.checked = cfg.mirror;
+        showToast('Settings reset to defaults.');
+      });
+
+      el.btnResetPlayground.addEventListener('click', () => {
+        state.clicksCount = 0;
+        state.dropsCount = 0;
+        state.cornersHit.clear();
+        el.statClicks.textContent = '0';
+        el.statDrops.textContent = '0';
+        el.statCorners.textContent = '0/4';
+        document.querySelectorAll('.v-count').forEach((s) => { s.textContent = '0 hits'; });
+        document.querySelectorAll('.corner-target').forEach((c) => {
+          c.classList.remove('bg-emerald-500/30', 'border-emerald-400', 'text-emerald-200');
+        });
+        const d1 = document.getElementById('dragItem1');
+        const d2 = document.getElementById('dragItem2');
+        d1.style.left = '16px'; d1.style.top = '80px';
+        d2.style.left = '144px'; d2.style.top = '80px';
+        el.scrollablePane.scrollTop = 0;
+        el.scrollOffsetLabel.textContent = 'top: 0px';
+        logEvent('Sandbox reset.');
+      });
+
+      window.addEventListener('keydown', (e) => {
+        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA')) return;
+        if (e.code === 'Space' || e.key === 'p' || e.key === 'P') {
+          e.preventDefault();
+          el.btnPause.click();
+        } else if (e.key === 'n' || e.key === 'N') {
+          el.btnRecenterHead.click();
+        } else if (e.key === 'c' || e.key === 'C') {
+          el.btnCalibrate.click();
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          el.btnSimTiltUp.click();
+        } else if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          el.btnSimTiltDown.click();
+        } else if (e.key === '1') {
+          setSimPose('move');
+        } else if (e.key === '2') {
+          setSimPose('click');
+        } else if (e.key === '3') {
+          setSimPose('drag');
+        } else if (e.key === '4') {
+          setSimPose('scroll');
+        } else if (e.key === '5') {
+          setSimPose('lost');
+        }
+      });
+
+      // =========================================================================
+      // Main Loop
+      // =========================================================================
+      async function tick(nowMs) {
+        const dt = Math.max(1, nowMs - state.lastFrameMs);
+        state.lastFrameMs = nowMs;
+        state.fps = 0.9 * state.fps + 0.1 * (1000 / dt);
+        el.fpsCounter.textContent = Math.round(state.fps) + ' FPS';
+
+        if (state.source === 'webcam' && webcamActive && el.webcamVideo.readyState >= 2 && !busyProcessingWebcam) {
+          busyProcessingWebcam = true;
+          try {
+            if (mpHandsInstance) await mpHandsInstance.send({ image: el.webcamVideo });
+            if (mpFaceInstance) await mpFaceInstance.send({ image: el.webcamVideo });
+          } catch (_) {}
+          busyProcessingWebcam = false;
+        }
+
+        stepGestureEngine(nowMs);
+        renderStudio(nowMs);
+        requestAnimationFrame(tick);
+      }
+
+      requestAnimationFrame(tick);
+    })();
+  </script>
+</body>
+</html>
